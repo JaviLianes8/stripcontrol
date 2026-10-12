@@ -8,4 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [0.1.0]
 
-- First release.
+- `strip_control` removes C0, DEL and C1 control characters while keeping tab,
+  newline and carriage return, with a configurable keep set.
+- `has_control` reports whether text holds a control character other than standard
+  whitespace.
+- `find_control` lists the index and codepoint of each such control character.
