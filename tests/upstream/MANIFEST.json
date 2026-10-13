@@ -1,0 +1,21 @@
+{
+  "unicode-18-DerivedGeneralCategory.txt": {
+    "title": "Unicode Character Database 18.0.0, extracted/DerivedGeneralCategory.txt",
+    "url": "https://www.unicode.org/Public/18.0.0/ucd/extracted/DerivedGeneralCategory.txt",
+    "revision": "Unicode 18.0.0",
+    "fetched": "2026-10-13",
+    "size": 282143,
+    "sha256": "d6b151d2d40ee9b1876d26f417980f45ffae47b6055ccf7203cb31f07a030f94",
+    "licence": "Unicode License v3, https://www.unicode.org/license.txt"
+  },
+  "xterm-ctlseqs.html": {
+    "title": "XTerm Control Sequences, by Edward Moy, Stephen Gildea and Thomas Dickey",
+    "url": "https://invisible-island.net/xterm/ctlseqs/ctlseqs.html",
+    "revision": "Patch #411 (2026/08/23)",
+    "fetched": "2026-10-13",
+    "size": 293655,
+    "sha256": "b4c4fbe5738b82c91860b924c8c0ae1afbacf637b4184f98b0382e0e8f033475",
+    "licence": "no licence stated on the page; read locally by the tests, never redistributed",
+    "note": "the URL is not pinned to a revision; when the page is updated the fetch reports a sha256 mismatch and the manifest needs a new entry"
+  }
+}
