@@ -2,15 +2,15 @@
 
 Progress:
 - [x] Brainstorm ranked improvements (this file)
-- [ ] Pin the ground truth: Unicode 18.0 categories, ECMA-48, the DEC parser, xterm control sequences
-- [ ] Sequence-aware stripping: CSI, OSC, DCS, SOS/PM/APC, ST and BEL, CAN/SUB, C1 forms
-- [ ] Streaming stripper that keeps state across chunk boundaries
-- [ ] Bytes input: UTF-8 C1 versus 8-bit C1, stray bytes
-- [ ] Unicode format characters (Cf) as an option, table generated from the UCD
-- [ ] Visible escaping for logs (`escape_control`)
-- [ ] Typed API and contracts: argument checks, runnable README, installed wheel
-- [ ] Command line: filter and check mode
-- [ ] Docs and packaging: README, CHANGELOG, metadata, sdist contents
+- [x] Pin the ground truth: Unicode 18.0 categories, ECMA-48, the DEC parser, xterm control sequences
+- [x] Sequence-aware stripping: CSI, OSC, DCS, SOS/PM/APC, ST and BEL, CAN/SUB, C1 forms
+- [x] Streaming stripper that keeps state across chunk boundaries
+- [x] Bytes input: UTF-8 C1 versus 8-bit C1, stray bytes
+- [x] Unicode format characters (Cf) as an option, table generated from the UCD
+- [x] Visible escaping for logs (`escape_control`)
+- [x] Typed API and contracts: argument checks, runnable README, installed wheel
+- [x] Command line: filter and check mode
+- [x] Docs and packaging: README, CHANGELOG, metadata, sdist contents
 - [ ] Gates: ruff format, ruff check, mypy --strict, pytest
 - [ ] Mutation run: removing guarded logic makes the suite fail
 - [ ] Independent review findings fixed with regression tests
