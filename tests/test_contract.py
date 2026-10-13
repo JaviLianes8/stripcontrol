@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import importlib.resources
 
 import stripcontrol
@@ -6,9 +8,13 @@ import stripcontrol
 # contract and the test below fails if the module and this list disagree.
 PUBLIC_API: list[str] = [
     "STANDARD_WHITESPACE",
+    "UNICODE_VERSION",
+    "ControlStripper",
+    "escape_control",
     "find_control",
     "has_control",
     "strip_control",
+    "strip_control_bytes",
 ]
 
 

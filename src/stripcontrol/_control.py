@@ -1,36 +1,89 @@
-"""Detect and remove C0/C1 control characters while keeping standard whitespace."""
+"""Classify control and format characters; detect, list and escape them one by one."""
 
 from __future__ import annotations
+
+import re
+
+from ._format_table import FORMAT_RANGES
 
 STANDARD_WHITESPACE = "\t\n\r"
 """Control characters that are ordinary text whitespace and are kept by default."""
 
-
-def _is_control(char: str) -> bool:
-    code = ord(char)
-    return code <= 0x1F or code == 0x7F or 0x80 <= code <= 0x9F
+# Unicode Cc is exactly C0, DEL and C1: U+0000..U+001F and U+007F..U+009F.
+_CONTROL_CLASS = "\x00-\x1f\x7f-\x9f"
 
 
-def strip_control(text: str, *, keep: str = STANDARD_WHITESPACE) -> str:
-    """Return ``text`` with control characters removed, preserving those in ``keep``.
+def _class_item(code: int) -> str:
+    return f"\\U{code:08x}"
 
-    Targets the C0 range (U+0000..U+001F), DEL (U+007F) and the C1 range
-    (U+0080..U+009F). Characters listed in ``keep`` are left untouched, which by
-    default is tab, newline and carriage return.
+
+_FORMAT_CLASS = "".join(
+    _class_item(start) if start == end else f"{_class_item(start)}-{_class_item(end)}"
+    for start, end in FORMAT_RANGES
+)
+CONTROLS = re.compile(f"[{_CONTROL_CLASS}]")
+CONTROLS_AND_FORMAT = re.compile(f"[{_CONTROL_CLASS}{_FORMAT_CLASS}]")
+
+
+def pattern(format_chars: bool) -> re.Pattern[str]:
+    """The character class to act on: controls, plus format characters when asked."""
+    return CONTROLS_AND_FORMAT if format_chars else CONTROLS
+
+
+def check_text(text: object, name: str = "text") -> str:
+    if not isinstance(text, str):
+        raise TypeError(f"{name} must be str, not {type(text).__name__}")
+    return text
+
+
+def has_control(text: str, *, keep: str = STANDARD_WHITESPACE, format_chars: bool = False) -> bool:
+    """Report whether ``text`` holds a control character that is not in ``keep``.
+
+    With ``format_chars=True`` Unicode format characters (category Cf) count as well.
     """
-    kept = set(keep)
-    return "".join(char for char in text if char in kept or not _is_control(char))
+    check_text(text)
+    kept = frozenset(check_text(keep, "keep"))
+    return any(match.group() not in kept for match in pattern(format_chars).finditer(text))
 
 
-def has_control(text: str) -> bool:
-    """Report whether ``text`` holds a control character other than tab, newline or return."""
-    return any(_is_control(char) and char not in STANDARD_WHITESPACE for char in text)
+def find_control(
+    text: str, *, keep: str = STANDARD_WHITESPACE, format_chars: bool = False
+) -> list[tuple[int, int]]:
+    """List ``(index, codepoint)`` for each control character in ``text`` not in ``keep``.
 
-
-def find_control(text: str) -> list[tuple[int, int]]:
-    """List ``(index, codepoint)`` for each control character other than standard whitespace."""
+    With ``format_chars=True`` Unicode format characters (category Cf) are listed too.
+    """
+    check_text(text)
+    kept = frozenset(check_text(keep, "keep"))
     return [
-        (index, ord(char))
-        for index, char in enumerate(text)
-        if _is_control(char) and char not in STANDARD_WHITESPACE
+        (match.start(), ord(match.group()))
+        for match in pattern(format_chars).finditer(text)
+        if match.group() not in kept
     ]
+
+
+def escape_control(
+    text: str, *, keep: str = STANDARD_WHITESPACE, format_chars: bool = False
+) -> str:
+    """Return ``text`` with each control character not in ``keep`` written as an escape.
+
+    A character below U+0100 becomes ``\\xNN``, others ``\\uNNNN`` or ``\\UNNNNNNNN``, so
+    a log keeps the evidence of an escape sequence without the terminal acting on it. The
+    result is meant for display: backslashes already in ``text`` are left as they are.
+    """
+    check_text(text)
+    kept = frozenset(check_text(keep, "keep"))
+
+    def replace(match: re.Match[str]) -> str:
+        char = match.group()
+        return char if char in kept else escape_char(ord(char))
+
+    return pattern(format_chars).sub(replace, text)
+
+
+def escape_char(code: int) -> str:
+    if code < 0x100:
+        return f"\\x{code:02x}"
+    if code < 0x10000:
+        return f"\\u{code:04x}"
+    return f"\\U{code:08x}"
