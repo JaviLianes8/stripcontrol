@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import codecs
+import contextlib
 import errno
 import os
 import sys
 from collections.abc import Callable, Iterator, Sequence
+from contextlib import AbstractContextManager
 from typing import BinaryIO
 
 from ._bytes import ERRORS, STRAY_C1, Encoding
@@ -58,7 +60,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 with _open(name) as stream:
                     chunks = _decode(stream, codec)
                     if args.check:
-                        if _check(name, chunks, keep, args.format_chars):
+                        label = "<stdin>" if name == "-" else name
+                        if _check(label, chunks, keep, args.format_chars):
                             status = max(status, 1)
                         continue
                     out: Iterator[str]
@@ -81,9 +84,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     return status
 
 
-def _open(name: str) -> BinaryIO:
+def _open(name: str) -> AbstractContextManager[BinaryIO]:
     if name == "-":
-        return os.fdopen(os.dup(sys.stdin.fileno()), "rb")
+        return contextlib.nullcontext(sys.stdin.buffer)
     return open(name, "rb")  # closed by the caller's with block
 
 
