@@ -38,6 +38,7 @@ def test_other_invalid_bytes_pass_through() -> None:
         (b"\xef\xbf\x07\xb9", b"\xef"),  # U+FFF9
         (b"\xe0\xa3\x01\xa2", b"\xe0"),  # U+08E2
         (b"\xc3\x00\xa9", b"\xc3"),  # even a harmless join is refused
+        (b"\xf0\xa0\x00\xa0\xa0", b"\xf0"),  # four-byte U+20820
         (b"\xef\xbb\x00\xef\xbb\x00\xbf\xbf", b"\xef\xbb\xef\xbf"),  # nested
     ],
 )

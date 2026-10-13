@@ -11,9 +11,9 @@ Progress:
 - [x] Typed API and contracts: argument checks, runnable README, installed wheel
 - [x] Command line: filter and check mode
 - [x] Docs and packaging: README, CHANGELOG, metadata, sdist contents
-- [ ] Gates: ruff format, ruff check, mypy --strict, pytest
-- [ ] Mutation run: removing guarded logic makes the suite fail
-- [ ] Independent review findings fixed with regression tests
+- [x] Gates: ruff format, ruff check, mypy --strict, pytest
+- [x] Mutation run: removing guarded logic makes the suite fail
+- [x] Independent review findings fixed with regression tests
 - [ ] Pull request opened, guard clean
 
 ## Starting point
@@ -114,3 +114,43 @@ their tests skip while they are absent.
 - Keeping colours while removing everything else (an SGR allow-list): a different product.
 - Emoji-aware `Cf` handling: `format_chars=True` removes ZWJ and tag characters, which
   breaks emoji sequences; this is documented rather than special-cased.
+
+## Verification
+
+- Gates on CPython 3.14 (a second Windows machine, fresh clone of the branch, new venv):
+  `ruff format --check .`, `ruff check .`, `mypy --strict src` (and `src tests`) and
+  `pytest` with the pinned files fetched and `STRIPCONTROL_E2E=1`: 174 passed. The
+  installed-wheel test builds the wheel and sdist, checks their contents, installs the wheel
+  in a fresh venv and drives the API, the `stripcontrol` console script and
+  `python -m stripcontrol` from an empty folder. Without the fetched files their tests skip.
+- Pinned sources: the `Cc` set of the UCD file is exactly what counts as a control, the
+  generated `Cf` table equals the file and agrees with the interpreter's `unicodedata`, and
+  each of the 16 C1 pairs listed by xterm strips the same in 7-bit and 8-bit form.
+- Mutation runs (one source edit at a time, no bytecode, per-mutant timeout, suite green
+  before and after). First run, 89 mutants: 14 alive. Equivalent code was removed (the C1
+  check that the non-ASCII branch already covers, the BEL check that only an OSC can reach,
+  a second `keep` check, a dead `close()` call, a `continue`), and tests were added for the
+  byte boundaries the survivors exposed (US inside CSI, which also made the parser stall,
+  `@` as final, `/` as intermediate, `ESC ( 0`), the decoder flush at end of input, a control
+  and a stray byte in one read, and flushing. Second run after the review fixes, 96 mutants:
+  one alive (four-byte joins), now killed by a test.
+
+## Review fixes
+
+An independent review attacked the branch; each finding is fixed with a test that fails
+without the fix:
+
+- Removing a control between invalid bytes could join them into a valid character, so
+  `EF BB 00 BF` came out as a byte order mark even with `format_chars=True`, in
+  `strip_control_bytes` and the command line. Escaped bytes that removal joins into a
+  character are now dropped, also across reads.
+- `--check` printed a file name's undecodable bytes raw (a stray `9B` is an 8-bit CSI).
+  Names now show controls, format characters and lone surrogates as escapes.
+- A read error was taken for a closed pipe (EINVAL) or ended the run with a traceback
+  (EIO). Read and open errors are now reported per input with exit code 2 and the other
+  inputs still run; only write errors count as a closed pipe.
+- `--chars-only` with `--check` or `--escape` is refused instead of ignored.
+- Docs: the line feed rule in the changelog, a kept BEL still ends an OSC, `keep` cannot
+  keep a stray byte, `--escape` shows a stray `9B` and U+009B alike, exit codes; module
+  docstrings for the CLI tests and fixtures; the xterm check matches the page's OSC syntax
+  lines instead of a sentence.
