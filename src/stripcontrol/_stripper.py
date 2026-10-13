@@ -31,7 +31,9 @@ _CSI_BODY_END = re.compile("[^\x20-\x3f]")  # past the parameter and intermediat
 
 
 def _cancels(code: int) -> bool:
-    return code in (0x0A, 0x18, 0x1A, 0x1B) or 0x80 <= code <= 0x9F
+    # C1 controls cancel too: inside a string the stop pattern finds them, and inside an
+    # escape or control sequence every character above 0x7F ends it (see feed).
+    return code in (0x0A, 0x18, 0x1A, 0x1B)
 
 
 class ControlStripper:
@@ -87,7 +89,7 @@ class ControlStripper:
                 stop = (_OSC_STOP if state == _OSC else _STRING_STOP).search(text, pos)
                 if stop is None:
                     pos = end
-                elif text[stop.start()] == "\x07" and state == _OSC:
+                elif text[stop.start()] == "\x07":  # only an OSC stops at BEL
                     state, pos = _GROUND, stop.start() + 1
                 else:
                     state, pos = _GROUND, stop.start()

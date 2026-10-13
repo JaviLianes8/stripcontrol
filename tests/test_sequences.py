@@ -102,6 +102,20 @@ def test_c0_controls_inside_a_control_sequence_act_and_the_sequence_goes_on() ->
     assert strip_control("a\x1b\rDb") == "a\rb"
 
 
+def test_every_c0_control_acts_inside_a_control_sequence() -> None:
+    # 01/15 (US) is the last C0 control; it must not end or stall the sequence.
+    assert strip_control("a\x1b[1\x1f2mb") == "ab"
+    assert strip_control("a\x1b[1\x1f2mb", keep="\x1f") == "a\x1fb"
+
+
+def test_final_and_intermediate_byte_boundaries() -> None:
+    assert strip_control("a\x1b[1@b") == "ab"  # 04/00 is the first final byte (ICH)
+    assert strip_control("a\x1b[1~b") == "ab"  # 07/14 is the last
+    assert strip_control("a\x1b/Ab") == "ab"  # 02/15 is the last intermediate byte
+    assert strip_control("a\x1b(0b") == "ab"  # 03/00 is the first final after one
+    assert strip_control("a\x1b 0b") == "ab"
+
+
 def test_c0_controls_inside_a_string_are_part_of_it() -> None:
     assert strip_control("a\x1b]0;x\ty\x07b") == "ab"
     assert strip_control("a\x1bPx\ty\x1b\\b") == "ab"

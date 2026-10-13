@@ -81,5 +81,6 @@ def test_7_bit_and_8_bit_forms_strip_alike(xterm_ctlseqs: str, tail: str) -> Non
 
 def test_xterm_accepts_bel_and_st_for_osc(xterm_ctlseqs: str) -> None:
     text = html.unescape(re.sub(r"<[^>]+>", "", xterm_ctlseqs))
-    assert re.search(r"XTerm accepts either BEL\s+or ST\s+for terminating OSC", text)
+    # The two OSC forms in the page's own notation.
+    assert re.search(r"OSC Ps ; Pt BEL", text) and re.search(r"OSC Ps ; Pt ST", text)
     assert strip_control("a\x1b]2;t\x07b\x1b]2;t\x1b\\c") == "abc"
