@@ -12,7 +12,8 @@ All notable changes to this project are documented here. The format follows
 
 - Whole ECMA-48 sequences are removed with their introducer: escape sequences, CSI
   control sequences and OSC, DCS, SOS, PM and APC control strings, in 7-bit and 8-bit
-  form, ended by ST or (for OSC) BEL and cancelled by CAN, SUB, ESC or any C1 control.
+  form, ended by ST or (for OSC) BEL and cancelled by CAN, SUB, ESC, any C1 control or
+  a line feed (so an unterminated sequence never hides the lines after it).
   `sequences=False` keeps the per-character behaviour.
 - `ControlStripper` strips a stream chunk by chunk with the same result as one call.
 - `strip_control_bytes` for UTF-8 (C1 as `C2 80..C2 9F`, stray bytes `80..9F` removed)

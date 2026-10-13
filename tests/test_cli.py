@@ -1,3 +1,5 @@
+"""The command line as a stdin/stdout filter: modes, options, positions, pipes."""
+
 from __future__ import annotations
 
 import contextlib

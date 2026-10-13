@@ -83,8 +83,10 @@ stripcontrol --check access.log              # FILE:LINE:COLUMN of each control,
 stripcontrol --escape access.log             # show \x1b instead of acting on it
 ```
 
-Options: `--chars-only`, `--format-chars`, `--strip-whitespace`, `--latin-1`.
-`python -m stripcontrol` works the same.
+Options: `--chars-only` (strip mode only), `--format-chars`, `--strip-whitespace`,
+`--latin-1`. Exit codes: 0 done, 1 `--check` found something, 2 bad usage or an input
+that could not be read (the other inputs still run). With `--escape` a stray byte `9B`
+and the character U+009B both show as `\x9b`. `python -m stripcontrol` works the same.
 
 ## API
 
@@ -123,13 +125,17 @@ log reader want different things, this library chooses the reader:
 - A non-ASCII character inside an escape or control sequence ends it and stays as text.
 - A sequence still open at the end of the input is dropped, as a terminal would swallow it.
 - A sequence whose introducer is in `keep` stays as text (`keep="\x1b"` keeps colours).
+  Inside a sequence `keep` does not apply to its terminators: a kept BEL still ends an OSC.
 
 Whatever the input, the output holds no control character outside `keep`.
 
 For bytes, `encoding="utf-8"` (the default) reads a C1 control as the two bytes `C2 80` to
 `C2 9F` and leaves bytes `80` to `9F` inside valid characters alone (`Λ` is `CE 9B`). A
 stray byte `80` to `9F` is removed, because a terminal in 8-bit mode would act on it;
-other invalid bytes pass through. `encoding="latin-1"` reads every byte `80` to `9F` as C1.
+other invalid bytes pass through, unless removing something between them would join them
+into a character (`EF BB 00 BF` must not become a byte order mark), in which case the
+joining bytes go too. `keep` is text, so it cannot keep a stray byte.
+`encoding="latin-1"` reads every byte `80` to `9F` as C1.
 
 `format_chars=True` removes zero width joiners and tag characters, which breaks emoji
 sequences built from them. `escape_control` is for display: backslashes already in the

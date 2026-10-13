@@ -1,3 +1,5 @@
+"""Fixtures for the third-party files listed in tests/upstream/MANIFEST.json."""
+
 from __future__ import annotations
 
 import hashlib
