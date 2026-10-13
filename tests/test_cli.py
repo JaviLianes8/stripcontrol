@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import errno
 import io
 import types
@@ -123,3 +124,16 @@ def test_other_write_errors_still_raise(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr("sys.stdout", types.SimpleNamespace(buffer=full))
     with pytest.raises(OSError, match="No space left"):
         main([])
+
+
+def test_file_names_are_printed_escaped(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    evil = "x\x1b]2;t\x07.log"
+    monkeypatch.setattr(_cli, "_open", lambda name: contextlib.nullcontext(io.BytesIO(b"\x00")))
+    code, out = _run(monkeypatch, ["--check", evil])
+    assert (code, out) == (1, b"x\\x1b]2;t\\x07.log:1:1: U+0000\n")
+    monkeypatch.undo()
+    code, out = _run(monkeypatch, [evil])
+    assert (code, out) == (2, b"")
+    assert capsys.readouterr().err.startswith("stripcontrol: x\\x1b]2;t\\x07.log: ")

@@ -60,7 +60,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 with _open(name) as stream:
                     chunks = _decode(stream, codec)
                     if args.check:
-                        label = "<stdin>" if name == "-" else name
+                        label = "<stdin>" if name == "-" else _shown(name)
                         if _check(label, chunks, keep, args.format_chars):
                             status = max(status, 1)
                         continue
@@ -74,7 +74,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             except OSError as error:
                 if name == "-" or error.filename is None:
                     raise
-                print(f"stripcontrol: {name}: {error.strerror}", file=sys.stderr)
+                print(f"stripcontrol: {_shown(name)}: {error.strerror}", file=sys.stderr)
                 status = 2
     except OSError as error:
         # The reader went away (`stripcontrol log | head`); Windows reports it as EINVAL.
@@ -134,6 +134,11 @@ def _advance(text: str, start: int, stop: int, line: int, column: int) -> tuple[
     if newlines:
         return line + newlines, stop - text.rindex("\n", start, stop)
     return line, column + stop - start
+
+
+def _shown(name: str) -> str:
+    # A file name is untrusted text too; never print its controls raw.
+    return escape_control(name, keep="", format_chars=True)
 
 
 def _write(data: bytes) -> None:
