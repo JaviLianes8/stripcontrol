@@ -257,7 +257,7 @@ verified all four unchanged manifest pins; Rich is installed for the oracle test
 ## QA round 4
 
 Reviewed base: `4aaf5cf1d962e8a2d618f6eb8a713fe76ea90c3f`. Date: 2026-11-01.
-Fix commit: pending (`pin remaining http decoding contracts`).
+Fix commit: `cb797236d6fdd4e8ffc2467ad855964f8b80ff1f` (`pin remaining http decoding contracts`).
 All seven lens e findings are addressed; independent lens re-verification remains pending.
 These findings identify missing contracts. The reviewed decoder already implements the
 expected behavior, so the implementation and public API remain unchanged. CHANGELOG records
