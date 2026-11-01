@@ -88,3 +88,45 @@ def test_fetch_defaults_to_manifest_directory_when_destination_is_unset(
     for name, body in BODIES.items():
         assert (tmp_path / name).read_bytes() == body
     assert not destination.exists()
+
+
+def _reject_entries(tmp_path: Path, names: tuple[str, ...], mismatch: str) -> None:
+    manifest_path = tmp_path / "MANIFEST.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for name in names:
+        if mismatch == "size":
+            manifest[name]["size"] += 1
+        else:
+            manifest[name]["sha256"] = hashlib.sha256(b"different").hexdigest()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+@pytest.mark.parametrize("count", [2, 3])
+@pytest.mark.parametrize("mismatch", ["size", "digest"])
+def test_fetch_returns_status_one_for_multiple_rejections(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, coding: str, count: int, mismatch: str
+) -> None:
+    destination, requested = _prepare_manifest(monkeypatch, tmp_path, coding)
+    rejected = tuple(BODIES)[:count]
+    _reject_entries(tmp_path, rejected, mismatch)
+
+    assert fetch_upstream.main() == 1
+    assert requested == [f"https://example.test/{name}" for name in BODIES]
+    assert {path.name: path.read_bytes() for path in destination.iterdir()} == {
+        name: body for name, body in BODIES.items() if name not in rejected
+    }
+
+
+@pytest.mark.parametrize("rejected", ["empty.txt", "last.bin"])
+@pytest.mark.parametrize("mismatch", ["size", "digest"])
+def test_fetch_rejects_mismatch_after_successful_entry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, coding: str, rejected: str, mismatch: str
+) -> None:
+    destination, requested = _prepare_manifest(monkeypatch, tmp_path, coding)
+    _reject_entries(tmp_path, (rejected,), mismatch)
+
+    assert fetch_upstream.main() == 1
+    assert requested == [f"https://example.test/{name}" for name in BODIES]
+    assert {path.name: path.read_bytes() for path in destination.iterdir()} == {
+        name: body for name, body in BODIES.items() if name != rejected
+    }

@@ -100,3 +100,28 @@ def test_fetch_preserves_existing_fixture_when_validation_fails(
 
     assert fetch_upstream.main() == 1
     assert fixture.read_bytes() == b"old"
+
+
+def test_fetch_creates_missing_destination_ancestors(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, coding: str
+) -> None:
+    _prepare_fetch(monkeypatch, tmp_path, coding, _wire(BODY, coding))
+    destination = tmp_path / "missing" / "nested" / "saved"
+    monkeypatch.setenv("STRIPCONTROL_UPSTREAM", str(destination))
+
+    assert fetch_upstream.main() == 0
+    assert (destination / "reference.txt").read_bytes() == BODY
+
+
+@pytest.mark.parametrize("name", ["caf\u00e9.txt", "\u65e5.txt"])
+def test_fetch_reads_literal_utf8_manifest_filenames(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, coding: str, name: str
+) -> None:
+    destination = _prepare_fetch(monkeypatch, tmp_path, coding, _wire(BODY, coding))
+    manifest_path = tmp_path / "MANIFEST.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest[name] = manifest.pop("reference.txt")
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+
+    assert fetch_upstream.main() == 0
+    assert {path.name: path.read_bytes() for path in destination.iterdir()} == {name: BODY}

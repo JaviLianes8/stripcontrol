@@ -84,6 +84,10 @@ All notable changes to this project are documented here. The format follows
   earlier failure from the final exit status.
 - Rejected fixture bytes preserve any existing file for both size and digest mismatches.
   With `STRIPCONTROL_UPSTREAM` unset, validated files are saved beside the manifest.
+- Multiple rejected fixtures always produce exit status 1, including even rejection counts.
+  Size and digest validation also apply to entries after a successful download.
+- Fixture downloads create all missing destination ancestors and read UTF-8 manifests
+  containing literal non-ASCII filenames, preserving those names and the validated bytes.
 
 ## [0.2.0]
 
