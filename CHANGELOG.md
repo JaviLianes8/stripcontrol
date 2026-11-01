@@ -6,6 +6,35 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-01
+
+### Stable
+
+- The eight public names, keyword-only options and defaults are stable: text and byte
+  stripping, character detection and escaping, incremental streams, whitespace and Unicode
+  version constants. Sequence recovery and Unicode 18.0 format classification match 0.2.0.
+- Python 3.10 through 3.14, typed public API, zero runtime dependencies, CLI and module entry.
+- Runnable API and guide examples, contract tests, seeded properties, built-wheel checks
+  and in-place upgrade coverage from the actual PyPI 0.2.0 release.
+
+### Changed
+
+- `sequences` and `format_chars` require actual booleans. Previously arbitrary truthy or
+  falsey objects were accepted. Invalid values now raise `TypeError`, including empty input.
+- Type and encoding errors use fixed messages without input values or type names.
+  A non-string encoding now raises `TypeError`; an unsupported string still raises
+  `ValueError`. A released memoryview raises `ValueError` as before.
+- String subclasses are read as their underlying text and bytes subclasses as their actual
+  buffers, ignoring overridable conversion and iteration hooks. Memoryviews keep their raw
+  bytes in logical order, including strided and wide-item views.
+- `ControlStripper` identifies its public module as `stripcontrol` for new pickles; old
+  pickles referring to `stripcontrol._stripper` remain readable.
+- CLI usage errors give a fixed diagnostic instead of echoing arguments. Input errors
+  report the error number instead of an arbitrary OS error payload. File labels are escaped
+  and limited to 120 characters plus an ellipsis. Closed output pipes close the stream
+  quietly without opening a device file; exit codes are unchanged.
+
+
 ## [0.2.0]
 
 ### Added

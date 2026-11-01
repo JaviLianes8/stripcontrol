@@ -18,11 +18,14 @@ _ESCAPED = re.compile("[\udc80-\udcff]")
 
 
 def check_encoding(encoding: object) -> Encoding:
+    if not isinstance(encoding, str):
+        raise TypeError("encoding must be str")
+    encoding = str.__str__(encoding)
     if encoding == "utf-8":
         return "utf-8"
     if encoding == "latin-1":
         return "latin-1"
-    raise ValueError(f"encoding must be 'utf-8' or 'latin-1', not {encoding!r}")
+    raise ValueError("encoding must be 'utf-8' or 'latin-1'")
 
 
 def _continuations(char: str) -> int:
@@ -79,7 +82,7 @@ def strip_control_bytes(
     format_chars: bool = False,
     encoding: Encoding = "utf-8",
 ) -> bytes:
-    """Return ``data`` without control characters, as :func:`strip_control` does for text.
+    r"""Return ``data`` without control characters, as :func:`strip_control` does for text.
 
     With ``encoding="utf-8"`` a C1 control is the two-byte form ``C2 80`` to ``C2 9F``;
     bytes ``80`` to ``9F`` inside a valid character (``"Λ"`` is ``CE 9B``) are left
@@ -87,11 +90,17 @@ def strip_control_bytes(
     in 8-bit mode would act on it; other invalid bytes pass through unchanged unless a
     removal would join them into a character. With ``encoding="latin-1"`` every byte
     ``80`` to ``9F`` is a C1 control. ``keep`` is text, so it cannot keep a stray byte.
+    Invalid argument types raise TypeError; unsupported encodings and released
+    memoryviews raise ValueError. Memoryviews are read as raw bytes in logical order.
+
+    >>> from stripcontrol import strip_control_bytes
+    >>> strip_control_bytes(b"a\x1b[31mb\x00")
+    b'ab'
     """
     if not isinstance(data, (bytes, bytearray, memoryview)):
-        raise TypeError(f"data must be bytes, not {type(data).__name__}")
+        raise TypeError("data must be bytes, bytearray or memoryview")
     codec = check_encoding(encoding)
-    text = bytes(data).decode(codec, ERRORS)
+    text = memoryview(data).tobytes().decode(codec, ERRORS)
     if codec == "utf-8":
         text = STRAY_C1.sub("", text)
     clean = strip_control(text, keep=keep, sequences=sequences, format_chars=format_chars)

@@ -54,7 +54,10 @@ def test_a_read_error_is_reported_and_the_next_file_still_runs(
     monkeypatch.setattr(_cli, "_open", lambda name: contextlib.nullcontext(streams[name]))
     code, out, _ = _run(monkeypatch, ["bad", "good"])
     assert (code, out) == (2, b"onetwo\n")
-    assert capsys.readouterr().err == f"stripcontrol: bad: {error.strerror}\n"
+    assert (
+        capsys.readouterr().err
+        == f"stripcontrol: bad: input could not be read (errno {error.errno})\n"
+    )
 
 
 def test_a_read_error_in_check_mode_is_not_exit_1(monkeypatch: pytest.MonkeyPatch) -> None:

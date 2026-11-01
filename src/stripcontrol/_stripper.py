@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from ._control import STANDARD_WHITESPACE, check_text, pattern
+from ._control import STANDARD_WHITESPACE, check_bool, check_text, pattern
 
 # Parser states, after the DEC parser (vt100.net/emu/dec_ansi_parser), reduced to what
 # removal needs: every parameter, intermediate and payload character is dropped.
@@ -37,11 +37,17 @@ def _cancels(code: int) -> bool:
 
 
 class ControlStripper:
-    """Incremental :func:`strip_control`: feed text in chunks, get the clean text back.
+    r"""Incremental :func:`strip_control`: feed text in chunks, get the clean text back.
 
     The parser state is kept between calls, so a sequence split across chunks is removed
     exactly as it would be in one call. A sequence still open at the end of the input is
     dropped, as a terminal would swallow it.
+    Wrong argument types raise TypeError. A stream is mutable and not thread-safe.
+
+    >>> from stripcontrol import ControlStripper
+    >>> stream = ControlStripper()
+    >>> stream.feed("a\x1b[3") + stream.feed("1mb") + stream.close()
+    'ab'
     """
 
     def __init__(
@@ -52,18 +58,30 @@ class ControlStripper:
         format_chars: bool = False,
     ) -> None:
         self._keep = frozenset(check_text(keep, "keep"))
+        check_bool(sequences, "sequences")
         self._sequences = sequences
         self._special = pattern(format_chars)
         self._state = _GROUND
 
     @property
     def in_sequence(self) -> bool:
-        """Whether the input so far ends inside an escape sequence or control string."""
+        r"""Whether the input so far ends inside an escape sequence or control string.
+
+        >>> from stripcontrol import ControlStripper
+        >>> stream = ControlStripper()
+        >>> stream.feed("\x1b["), stream.in_sequence
+        ('', True)
+        """
         return self._state != _GROUND
 
     def feed(self, text: str) -> str:
-        """Return the clean form of ``text``, continuing from the previous chunk."""
-        check_text(text)
+        r"""Return clean text, continuing from the previous chunk; reject non-text.
+
+        >>> from stripcontrol import ControlStripper
+        >>> ControlStripper().feed("a\x00b")
+        'ab'
+        """
+        text = check_text(text)
         out: list[str] = []
         state, pos, end = self._state, 0, len(text)
         while pos < end:
@@ -122,7 +140,13 @@ class ControlStripper:
         return "".join(out)
 
     def close(self) -> str:
-        """End the input: drop any sequence still open and reset for reuse."""
+        """Drop any open sequence, reset for reuse, and return an empty string.
+
+        >>> from stripcontrol import ControlStripper
+        >>> stream = ControlStripper()
+        >>> stream.close(), stream.in_sequence, stream.feed("new")
+        ('', False, 'new')
+        """
         self._state = _GROUND
         return ""
 
@@ -134,7 +158,7 @@ def strip_control(
     sequences: bool = True,
     format_chars: bool = False,
 ) -> str:
-    """Return ``text`` without control characters, keeping those in ``keep``.
+    r"""Return ``text`` without control characters, keeping those in ``keep``.
 
     Control characters are the C0 range (U+0000..U+001F), DEL (U+007F) and the C1 range
     (U+0080..U+009F). With ``sequences=True`` (the default) whole ECMA-48 sequences go
@@ -142,6 +166,11 @@ def strip_control(
     and APC control strings, in 7-bit (``ESC [``) and 8-bit (``U+009B``) form. A sequence
     whose introducer is listed in ``keep`` is left as text. ``format_chars=True`` also
     removes Unicode format characters (category Cf), such as bidi overrides.
+    Wrong argument types raise TypeError. LF cancels incomplete sequences.
+
+    >>> from stripcontrol import strip_control
+    >>> strip_control("a\x1b[31mb\x00\n")
+    'ab\n'
     """
     stripper = ControlStripper(keep=keep, sequences=sequences, format_chars=format_chars)
     return stripper.feed(text) + stripper.close()

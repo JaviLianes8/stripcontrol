@@ -1,5 +1,7 @@
 # stripcontrol
 
+[![Lianes8 Certified](https://lianes8studio.com/certified/lianes8-certified-badge.svg)](https://lianes8studio.com/certified)
+
 Remove or detect control characters and terminal escape sequences in text, logs and
 streams. Typed, zero dependencies, linear time on hostile input.
 
@@ -42,8 +44,7 @@ print(escape_control(text))
 # user=\x1b[2Jadmin\x9b
 ```
 
-Unicode format characters (category Cf), such as the bidi overrides behind Trojan Source
-(CVE-2021-42574), are included on request:
+Unicode format characters (category Cf), including bidi overrides, are included on request:
 
 ```python
 from stripcontrol import has_control, strip_control
@@ -102,65 +103,52 @@ and the character U+009B both show as `\x9b`. `python -m stripcontrol` works the
 | `UNICODE_VERSION` | The Unicode version of the format character table |
 
 `keep` is a string of characters to leave alone. Non-text arguments raise `TypeError`;
-an unknown `encoding` raises `ValueError`.
+an unknown string `encoding` raises `ValueError`. Boolean options require `bool`.
 
-## What is removed
+## Rules and limits
 
-- **Control characters**: C0 (U+0000 to U+001F), DEL (U+007F) and C1 (U+0080 to U+009F),
-  which is exactly the Unicode `Cc` category. With `format_chars=True`, also `Cf` (170
-  code points in Unicode 18.0, from a table generated from the Unicode data files, so the
-  result does not depend on the Python version).
-- **Sequences** (ECMA-48), in 7-bit and 8-bit form: escape sequences (`ESC`, intermediates,
-  final), control sequences (`ESC [` or U+009B, parameters, intermediates, final byte),
-  OSC strings (`ESC ]` or U+009D, ended by ST or BEL) and DCS, SOS, PM and APC strings
-  (ended by ST, which is `ESC \` or U+009C).
+Controls are Unicode `Cc`: C0, DEL and C1. `format_chars=True` also removes the 170
+`Cf` code points in the pinned Unicode 18.0 table, including joiners used in emoji.
+The [GUIDE](https://github.com/JaviLianes8/stripcontrol/blob/main/GUIDE.md) describes
+sequence recovery, byte encodings, stream reuse, errors and the upgrade from 0.2.0.
+The [CHANGELOG](https://github.com/JaviLianes8/stripcontrol/blob/main/CHANGELOG.md)
+lists release changes.
 
-A sequence is read the way a terminal reads it (after the DEC parser described at
-vt100.net): ESC, CAN, SUB and any C1 control cancel a sequence in progress; C0 controls
-inside an escape or control sequence take effect at once (a kept newline survives) and
-inside a string they belong to it; DEL inside a sequence is ignored. Where a terminal and a
-log reader want different things, this library chooses the reader:
-
-- A line feed ends any sequence, so an unterminated `ESC ]` cannot hide the lines after it.
-- A non-ASCII character inside an escape or control sequence ends it and stays as text.
-- A sequence still open at the end of the input is dropped, as a terminal would swallow it.
-- A sequence whose introducer is in `keep` stays as text (`keep="\x1b"` keeps colours).
-  Inside a sequence `keep` does not apply to its terminators: a kept BEL still ends an OSC.
-
-Whatever the input, the output holds no control character outside `keep`.
-
-For bytes, `encoding="utf-8"` (the default) reads a C1 control as the two bytes `C2 80` to
-`C2 9F` and leaves bytes `80` to `9F` inside valid characters alone (`Λ` is `CE 9B`). A
-stray byte `80` to `9F` is removed, because a terminal in 8-bit mode would act on it;
-other invalid bytes pass through, unless removing something between them would join them
-into a character (`EF BB 00 BF` must not become a byte order mark), in which case the
-joining bytes go too. `keep` is text, so it cannot keep a stray byte.
-`encoding="latin-1"` reads every byte `80` to `9F` as C1.
-
-`format_chars=True` removes zero width joiners and tag characters, which breaks emoji
-sequences built from them. `escape_control` is for display: backslashes already in the
-text are not escaped, so use `repr` when the result must round-trip.
+This is a log filter, not a terminal emulator or a universal text security policy.
+It preserves carriage returns by default, does not undo cursor movements, and leaves
+Unicode line separators and ordinary backslashes alone. Use `keep=""` to remove all
+controls, or `escape_control` to retain visible evidence. A retained sequence introducer
+can still activate terminal behavior. Each CLI file starts a fresh parser.
 
 ## Why
 
-Logs, filenames, chat messages and command output carry text from people you do not trust.
-Printed to a terminal, an escape sequence in that text can retitle the window, hide lines,
-rewrite what is on screen or, in older terminals, type a reply back to the shell: nginx
-(CVE-2009-4487), WEBrick (CVE-2009-4492) and kubectl (CVE-2021-25743) all shipped that
-bug. Removing only the control characters leaves the sequence bodies behind as noise
-(`[31m`, `]0;title`), dropping bytes `80` to `9F` corrupts UTF-8, and a filter applied
-chunk by chunk misses sequences split across reads. This library handles those cases in one
-small, typed function with nothing else to install.
+Logs and command output can contain terminal instructions from untrusted input. Removing
+only ESC leaves bodies such as `[31m` behind; dropping bytes `80` to `9F` corrupts UTF-8;
+filtering independent chunks loses sequences split across reads.
+
+For simple character filtering, Python's
+[`unicodedata.category`](https://docs.python.org/3/library/unicodedata.html#unicodedata.category)
+plus a comprehension is sufficient. It uses the Unicode database bundled with the
+interpreter; stripcontrol uses a pinned table and also understands sequence boundaries.
+If your application already renders styled text with Rich,
+[`Text.from_ansi`](https://rich.readthedocs.io/en/stable/reference/text.html#rich.text.Text.from_ansi)
+is useful for decoding ANSI styles. stripcontrol instead provides plain text removal,
+byte filtering and incremental parsing without runtime dependencies. The shared SGR
+subset is compared with Rich's real output in the tests.
 
 ## Development
 
 `python scripts/fetch_upstream.py` fetches the pinned Unicode and xterm files that some
 tests read (they skip without them); `python scripts/gen_format_table.py` regenerates the
-format character table. `scripts/check.ps1` runs the whole gate.
+format character table. `scripts/check.ps1` runs the whole gate. Set `STRIPCONTROL_UPSTREAM` to choose a local
+download folder. Set `STRIPCONTROL_E2E=1` for wheel and CLI checks and
+`STRIPCONTROL_E2E_PYPI=1` to also exercise the upgrade from PyPI 0.2.0.
+Tests require `pytest-timeout` and use a 300-second per-test limit. Pass
+`pytest --basetemp <scratch-folder>` to control temporary test files.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/JaviLianes8/stripcontrol/blob/main/LICENSE).
 
 ## Links
 

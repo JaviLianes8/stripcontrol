@@ -110,14 +110,14 @@ class _ClosedPipe(io.BytesIO):
 
 @pytest.mark.parametrize("error", [BrokenPipeError(), OSError(errno.EINVAL, "Invalid")])
 def test_a_closed_pipe_ends_quietly(monkeypatch: pytest.MonkeyPatch, error: OSError) -> None:
-    redirected: list[int] = []
+    closed: list[bool] = []
     monkeypatch.setattr("sys.stdin", types.SimpleNamespace(buffer=io.BytesIO(b"text\n")))
     monkeypatch.setattr(
-        "sys.stdout", types.SimpleNamespace(buffer=_ClosedPipe(error), fileno=lambda: 99)
+        "sys.stdout",
+        types.SimpleNamespace(buffer=_ClosedPipe(error), close=lambda: closed.append(True)),
     )
-    monkeypatch.setattr("os.dup2", lambda fd, target: redirected.append(target))
     assert main([]) == 0
-    assert redirected == [99]
+    assert closed == [True]
 
 
 def test_other_write_errors_still_raise(monkeypatch: pytest.MonkeyPatch) -> None:
