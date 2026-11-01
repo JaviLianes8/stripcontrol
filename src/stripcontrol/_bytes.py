@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Literal
+from typing import Literal, cast
 
 from ._control import STANDARD_WHITESPACE
 from ._stripper import strip_control
@@ -100,6 +100,10 @@ def strip_control_bytes(
     if not issubclass(type(data), (bytes, bytearray, memoryview)):
         raise TypeError("data must be bytes, bytearray or memoryview")
     codec = check_encoding(encoding)
+    if issubclass(type(data), bytes):
+        data = bytes.__getitem__(cast(bytes, data), slice(None))
+    elif issubclass(type(data), bytearray):
+        data = bytearray.__getitem__(cast(bytearray, data), slice(None))
     text = memoryview(data).tobytes().decode(codec, ERRORS)
     if codec == "utf-8":
         text = STRAY_C1.sub("", text)

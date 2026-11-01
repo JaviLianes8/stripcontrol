@@ -1,0 +1,63 @@
+"""Handwritten HTTP bodies verify decoding before manifest validation and storage."""
+
+from __future__ import annotations
+
+import gzip
+import hashlib
+import io
+import json
+import sys
+import urllib.request
+import zlib
+from email.message import Message
+from pathlib import Path
+
+import brotli  # type: ignore[import-untyped]
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import fetch_upstream
+
+BODY = b"Handwritten reference content.\n" * 20
+
+
+class _Response(io.BytesIO):
+    def __init__(self, data: bytes, coding: str) -> None:
+        super().__init__(data)
+        self.headers = Message()
+        if coding:
+            self.headers["Content-Encoding"] = coding
+
+
+@pytest.mark.parametrize(
+    ("coding", "wire"),
+    [
+        ("", BODY),
+        ("identity", BODY),
+        ("br", brotli.compress(BODY)),
+        ("gzip", gzip.compress(BODY)),
+        ("deflate", zlib.compress(BODY)),
+        ("gzip, br", brotli.compress(gzip.compress(BODY))),
+    ],
+)
+@pytest.mark.parametrize("valid", [True, False])
+def test_fetch_validates_and_saves_decoded_content(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, coding: str, wire: bytes, valid: bool
+) -> None:
+    manifest = {
+        "reference.txt": {
+            "url": "https://example.test/reference",
+            "size": len(BODY),
+            "sha256": hashlib.sha256(BODY if valid else b"different").hexdigest(),
+        }
+    }
+    (tmp_path / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+    destination = tmp_path / "download"
+    monkeypatch.setattr(fetch_upstream, "FOLDER", tmp_path)
+    monkeypatch.setenv("STRIPCONTROL_UPSTREAM", str(destination))
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *args, **kwargs: _Response(wire, coding))
+    assert fetch_upstream.main() == (0 if valid else 1)
+    if valid:
+        assert (destination / "reference.txt").read_bytes() == BODY
+    else:
+        assert not (destination / "reference.txt").exists()

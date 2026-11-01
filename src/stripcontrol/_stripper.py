@@ -9,6 +9,7 @@ from ._control import STANDARD_WHITESPACE, check_bool, check_text, pattern
 # Parser states, after the DEC parser (vt100.net/emu/dec_ansi_parser), reduced to what
 # removal needs: every parameter, intermediate and payload character is dropped.
 _GROUND, _ESCAPE, _ESCAPE_INTERMEDIATE, _CSI, _OSC, _STRING = range(6)
+_STRING_ESCAPE = 6  # A possible ST, including an ESC kept by the caller.
 
 # The 8-bit introducers and the characters that follow ESC in their 7-bit form.
 _C1_INTRODUCERS = {
@@ -101,16 +102,26 @@ class ControlStripper:
                 continue
             char = text[pos]
             code = ord(char)
-            if _cancels(code):
-                state = _GROUND  # read the same character again from the ground state
+            if state == _STRING_ESCAPE:
+                state = _GROUND
+                if char == "\\":
+                    pos += 1
+                elif "\x1b" in self._keep:
+                    out.append("\x1b")
+                else:
+                    state = _ESCAPE
             elif state in (_OSC, _STRING):
                 stop = (_OSC_STOP if state == _OSC else _STRING_STOP).search(text, pos)
                 if stop is None:
                     pos = end
-                elif text[stop.start()] == "\x07":  # only an OSC stops at BEL
+                elif text[stop.start()] in "\x07\x9c":
                     state, pos = _GROUND, stop.start() + 1
+                elif text[stop.start()] == "\x1b":
+                    state, pos = _STRING_ESCAPE, stop.start() + 1
                 else:
                     state, pos = _GROUND, stop.start()
+            elif _cancels(code):
+                state = _GROUND  # read the same character again from the ground state
             elif code < 0x20:
                 # A C0 control inside an escape or control sequence acts at once.
                 if char in self._keep:

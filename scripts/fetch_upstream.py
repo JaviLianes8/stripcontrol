@@ -8,14 +8,33 @@ them; each download is checked against the size and sha256 in the manifest.
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import os
 import sys
 import urllib.request
+import zlib
 from pathlib import Path
+from typing import cast
+
+import brotli  # type: ignore[import-untyped]
 
 FOLDER = Path(__file__).resolve().parents[1] / "tests" / "upstream"
+
+
+def _decode(body: bytes, encoding: str) -> bytes:
+    for coding in reversed(encoding.lower().split(",")):
+        coding = coding.strip()
+        if coding == "br":
+            body = cast(bytes, brotli.decompress(body))
+        elif coding == "gzip":
+            body = gzip.decompress(body)
+        elif coding == "deflate":
+            body = zlib.decompress(body)
+        elif coding not in ("", "identity"):
+            raise ValueError("unsupported HTTP content encoding")
+    return body
 
 
 def main() -> int:
@@ -25,7 +44,7 @@ def main() -> int:
     failed = 0
     for name, entry in manifest.items():
         with urllib.request.urlopen(entry["url"], timeout=60) as response:
-            body = response.read()
+            body = _decode(response.read(), response.headers.get("Content-Encoding", ""))
         digest = hashlib.sha256(body).hexdigest()
         if len(body) != entry["size"] or digest != entry["sha256"]:
             print(f"{name}: got {len(body)} bytes, sha256 {digest}; manifest differs")

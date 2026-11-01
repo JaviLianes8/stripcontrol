@@ -36,7 +36,8 @@ ESC followed by backslash or U+009C. BEL also terminates OSC, but not other stri
 Parameters and intermediate bytes are discarded. This filter intentionally tolerates
 malformed parameter ordering; it does not validate terminal commands or emulate a screen.
 
-ESC, CAN, SUB and C1 controls cancel the current sequence and are reprocessed as input.
+Except for string terminators, ESC, CAN, SUB and C1 controls cancel the current sequence
+and are reprocessed as input.
 Inside escape/CSI sequences, ordinary C0 controls are removed or kept according to `keep`
 without ending the sequence; DEL is ignored. Inside a string they are payload.
 These recovery rules have two additional log-oriented choices:
@@ -45,8 +46,10 @@ These recovery rules have two additional log-oriented choices:
 - Non-ASCII text ends escape/CSI sequences and is preserved; inside a string it is payload.
 
 A sequence still open at end of input is discarded. An introducer listed in `keep`
-does not open a sequence. String terminators still terminate even if listed in `keep`:
-keeping BEL does not preserve the BEL that closes an OSC.
+does not open a sequence. String terminators are consumed even if listed in `keep`:
+neither ST nor the BEL closing an OSC is preserved. An ESC inside a string is held until
+the next character distinguishes ST from cancellation, including across empty feeds and
+chunk boundaries. A trailing ESC inside an unfinished string is discarded on `close()`.
 
 ```python
 from stripcontrol import strip_control
@@ -85,6 +88,8 @@ assert stream.feed("new") == "new"
 
 `strip_control_bytes` accepts `bytes`, `bytearray` and `memoryview`, returns `bytes`, and
 never mutates the input. Views use raw bytes in logical order, regardless of item format.
+The only encoding names are exactly `utf-8` and `latin-1`; aliases and case variants
+raise `ValueError`.
 `utf-8` decodes valid characters before filtering, so continuation bytes in the C1 range
 inside valid characters survive. Stray bytes `80`..`9F` are removed without opening a
 sequence, even if `keep` contains the corresponding Unicode character.
@@ -120,6 +125,14 @@ Exit codes are 0 for success, 1 for findings under `--check`, 2 for usage/input 
 Input errors do not stop later files. Closed output pipes end quietly with the status so
 far. Other output errors propagate. Diagnostics escape and truncate file labels to 120
 characters plus `...`; usage errors do not echo arguments and input errors report errno.
+
+After a read failure, output already emitted for that file remains. Pending decoder bytes,
+unfinished sequences and the UTF-8 joining-protection tail are discarded, not finalized as
+at normal EOF. In strip mode a trailing undecodable UTF-8 lead (`C2`..`F4`) can be held
+with fewer than its required continuation bytes, even after a removed control. For example,
+reading `b"prefix\xf4\x00"` then failing emits only `b"prefix"`; normal EOF emits
+`b"prefix\xf4"`. Partial output can depend on read boundaries and is not a complete
+sanitization of the bytes read. Each later file starts with fresh state.
 
 ## Upgrade from 0.2.0
 

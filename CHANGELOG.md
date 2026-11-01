@@ -12,7 +12,7 @@ All notable changes to this project are documented here. The format follows
 
 - The eight public names, keyword-only options and defaults are stable: text and byte
   stripping, character detection and escaping, incremental streams, whitespace and Unicode
-  version constants. Sequence recovery and Unicode 18.0 format classification match 0.2.0.
+  version constants. Unicode 18.0 format classification matches 0.2.0.
 - Python 3.10 through 3.14, typed public API, zero runtime dependencies, CLI and module entry.
 - Runnable API and guide examples, contract tests, seeded properties, built-wheel checks
   and in-place upgrade coverage from the actual PyPI 0.2.0 release.
@@ -27,9 +27,9 @@ All notable changes to this project are documented here. The format follows
   Validation does not invoke input inspection hooks such as a custom `__class__`.
   A non-string encoding now raises `TypeError`; an unsupported string still raises
   `ValueError`. A released memoryview raises `ValueError` as before.
-- String subclasses are read as their underlying text and bytes subclasses as their actual
-  buffers, ignoring overridable conversion and iteration hooks. Memoryviews keep their raw
-  bytes in logical order, including strided and wide-item views.
+- String subclasses are read as their underlying text and bytes/bytearray subclasses as
+  their stored contents, ignoring conversion, iteration, slicing and buffer hooks.
+  Memoryviews keep their raw bytes in logical order, including strided and wide-item views.
 - `ControlStripper` identifies its public module as `stripcontrol` for new pickles; old
   pickles referring to `stripcontrol._stripper` remain readable.
 - CLI usage errors give a fixed diagnostic instead of echoing arguments. Input errors
@@ -39,6 +39,22 @@ All notable changes to this project are documented here. The format follows
 - The release helper checks whether the target version exists, allowing upgrades to an
   existing project. It refuses dirty builds, uses a fresh output folder, and stops on
   build or archive validation errors.
+
+### Fixed
+
+- String terminators are consumed even when listed in `keep`, including U+009C and
+  ESC-backslash across stream chunks. An ESC inside a string is held for the next character;
+  closing an unfinished string discards that pending ESC. Other ESC cancellation rules stay
+  unchanged. This applies to text and both byte encodings.
+- The upstream fixture fetcher decodes Brotli, gzip and deflate HTTP content before checking
+  manifest hashes and saving files. Brotli is a development dependency only.
+
+### Clarified
+
+- Read failures preserve emitted CLI output and discard buffered decoder/joining tails and
+  unfinished sequences. Normal EOF finalizes buffered bytes. Later files still run.
+- Contracts now pin every stream option across repeated close/reuse, the bare ESC final-byte
+  boundary, exact encoding names, and UTF-8 check reports with non-ASCII filenames.
 
 ## [0.2.0]
 

@@ -134,6 +134,14 @@ def test_installed_wheel_end_to_end(tmp_path: Path) -> None:
         b"access.log:1:15: U+0007",
         b"access.log:2:2: byte 0x9b",
     ]
+    for name in ("\u00e9.log", "\u65e5.log"):
+        (work / name).write_bytes(b"x\x00")
+        for options in ([], ["--latin-1"]):
+            for command in ([script], [python, "-m", "stripcontrol"]):
+                report = _run(*command, "--check", *options, name, cwd=work)
+                assert report.returncode == 1, report.stderr
+                assert report.stdout == name.encode("utf-8") + b":1:2: U+0000\n"
+                assert report.stderr == b""
     escaped = _run(script, "--escape", cwd=work, stdin=log)
     assert escaped.stdout == b"GET /\\x1b]2;owned\\x07 ok\n\xce\x9b\\x9b\n"
     assert escaped.returncode == 0
