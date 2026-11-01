@@ -43,7 +43,7 @@ Progress:
 | 16 | Pending independent reviewer |
 | 17 | Merge and publication pending; PR and guard tracked above |
 | 18 | PASS: 29 deliberate mutations caught; table below |
-| 19 | Round 1 lenses a, c, e and rounds 2 through 4 lens e findings fixed below; re-verification pending |
+| 19 | Round 1 lenses a, c, e and rounds 2 through 6 lens e findings fixed below; re-verification pending |
 
 ## API and behavior
 
@@ -332,5 +332,41 @@ The unmodified and restored copies both pass all 265 fetcher tests.
 All four release gates exit 0: `ruff format --check .` (41 files), `ruff check .`,
 `mypy --strict src` (8 files), and `pytest` (666 passed, no skips). Strict typing also
 passes for `src tests` (33 files). CPython 3.14.6, 300-second per-test timeout; both
+installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. A fresh fixture fetch
+verified all four unchanged manifest pins; Rich is installed for the oracle test.
+
+## QA round 6
+
+Reviewed base: `aa5a472b8541f4f1767769fc28ac689c9de0df49`. Date: 2026-11-01.
+Fix commit: `49f0061e5b6cbeacd04d31c10e4382e3b594ec5b` (`pin fixture storage integrity contracts`).
+All six lens e findings are addressed; independent lens re-verification remains pending.
+These findings identify missing contracts. The added tests pass on the unchanged fetcher
+and fail when the reported defects are injected. The implementation and public API remain
+unchanged. CHANGELOG records the guarantees under Clarified. No findings are disputed.
+
+| Finding | Changes and verification |
+| --- | --- |
+| E-26 | Preserve single and repeated trailing NUL bytes and NUL-only content during decoding and storage across all six encoding cases. N01 fails all 36 corresponding cases of `test_decode_preserves_representation_bytes` and `test_fetch_saves_representation_bytes`. |
+| E-27 | Preserve a UTF-8 BOM before text and as the entire representation during decoding and storage across the same encodings. N02 fails all 24 BOM cases of the byte-preservation contracts. |
+| E-28 | Use distinct bytes in successive 8192-byte blocks and in the final partial block. Compare complete decoded and saved bytes across the same encodings. N03 fails all 36 distinct-block cases of the byte-preservation contracts. |
+| E-29 | Replace both shorter and longer existing fixtures. Fetch twice with unchanged, shorter and empty replacement content. Require exact stored bytes after each successful fetch. N08 fails all 15 cases of `test_fetch_replaces_existing_fixture` and `test_repeated_fetch_replaces_fixture`. |
+| E-30 | Keep the correct digest while declaring zero bytes, one byte too few or one byte too many. Require exit 1 and an empty destination. N09 fails all 9 cases of `test_fetch_rejects_wrong_size_with_correct_digest_without_saving`. |
+| E-31 | Keep the correct size and alter one digest digit after matching prefixes of 8, 31, 62 or 63 digits. Require exit 1 and an empty destination. N10 fails all 12 cases of `test_fetch_rejects_digest_suffix_mismatch_without_saving`. |
+
+The 132 added cases extend `tests/test_fetch_upstream_bytes.py` and introduce
+`tests/test_fetch_upstream_storage.py`. Byte preservation covers absent encoding,
+identity, gzip, deflate, Brotli and a three-codec stack. Replacement and independent
+manifest checks cover absent encoding, gzip and the three-codec stack. All payloads
+are handwritten or compressed locally from handwritten bytes.
+
+The ten exact N01 through N10 patches were replayed serially in a scratch copy before
+and after adding the contracts. All six reported survivors originally passed all 265
+fetcher tests; N04, N05, N06 and N07 were already caught. With the added contracts, all
+ten patches exit 1 through test failures, with no collection errors, skips or timeouts.
+The unmodified and restored copies both pass all 397 fetcher tests.
+
+All four release gates exit 0: `ruff format --check .` (42 files), `ruff check .`,
+`mypy --strict src` (8 files), and `pytest` (798 passed, no skips). Strict typing also
+passes for `src tests` (34 files). CPython 3.14.6, 300-second per-test timeout; both
 installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. A fresh fixture fetch
 verified all four unchanged manifest pins; Rich is installed for the oracle test.
