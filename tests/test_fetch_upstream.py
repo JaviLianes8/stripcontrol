@@ -16,9 +16,10 @@ import brotli  # type: ignore[import-untyped]
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-import fetch_upstream
+import fetch_upstream as fetch_upstream
 
 BODY = b"Handwritten reference content.\n" * 20
+GZIP_MEMBERS = gzip.compress(BODY[:23], mtime=0) + gzip.compress(BODY[23:], mtime=0)
 
 
 class _Response(io.BytesIO):
@@ -30,13 +31,19 @@ class _Response(io.BytesIO):
 
 
 def _prepare_fetch(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, coding: str, wire: bytes, valid: bool = True
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    coding: str,
+    wire: bytes,
+    valid: bool = True,
+    *,
+    body: bytes = BODY,
 ) -> Path:
     manifest = {
         "reference.txt": {
             "url": "https://example.test/reference",
-            "size": len(BODY),
-            "sha256": hashlib.sha256(BODY if valid else b"different").hexdigest(),
+            "size": len(body),
+            "sha256": hashlib.sha256(body if valid else b"different").hexdigest(),
         }
     }
     (tmp_path / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -81,6 +88,20 @@ def _prepare_fetch(
         ("gzip, br, gzip", gzip.compress(brotli.compress(gzip.compress(BODY)))),
         ("deflate, gzip, deflate", zlib.compress(gzip.compress(zlib.compress(BODY)))),
         ("GZip , identity, \tgzip\t", gzip.compress(gzip.compress(BODY))),
+        (", gzip", gzip.compress(BODY)),
+        ("gzip, ", gzip.compress(BODY)),
+        (", gzip, ", gzip.compress(BODY)),
+        (", br, ", brotli.compress(BODY)),
+        (", deflate, ", zlib.compress(BODY)),
+        ("gzip,, br", brotli.compress(gzip.compress(BODY))),
+        ("gzip, \t, br", brotli.compress(gzip.compress(BODY))),
+        ("gzip, br, ", brotli.compress(gzip.compress(BODY))),
+        (", gzip,, br,", brotli.compress(gzip.compress(BODY))),
+        (" , identity, gzip, , ", gzip.compress(BODY)),
+        (", , \t,", BODY),
+        ("gzip", GZIP_MEMBERS),
+        ("gzip, br", brotli.compress(GZIP_MEMBERS)),
+        ("gzip", gzip.compress(b"", mtime=0) + GZIP_MEMBERS + gzip.compress(b"", mtime=0)),
     ],
 )
 @pytest.mark.parametrize("valid", [True, False])
@@ -101,6 +122,24 @@ def test_fetch_validates_and_saves_decoded_content(
         ("unsupported-coding", BODY),
         ("gzip, unsupported-coding", gzip.compress(BODY)),
         ("unsupported-coding, gzip", gzip.compress(BODY)),
+        ("g zip", gzip.compress(BODY)),
+        ("g\tzip", gzip.compress(BODY)),
+        ("b r", brotli.compress(BODY)),
+        ("b\tr", brotli.compress(BODY)),
+        ("de flate", zlib.compress(BODY)),
+        ("de\tflate", zlib.compress(BODY)),
+        ("ident ity", BODY),
+        ("ident\tity", BODY),
+        ("gzip, b r", brotli.compress(gzip.compress(BODY))),
+        ("g zip, br", brotli.compress(gzip.compress(BODY))),
+        ("gzip;q=1", gzip.compress(BODY)),
+        ("gzip; q=1", gzip.compress(BODY)),
+        ("gzip;", gzip.compress(BODY)),
+        ("br;q=1", brotli.compress(BODY)),
+        ("deflate;q=1", zlib.compress(BODY)),
+        ("identity;q=1", BODY),
+        ("gzip, br;q=1", brotli.compress(gzip.compress(BODY))),
+        ("gzip;q=1, br", brotli.compress(gzip.compress(BODY))),
     ],
 )
 def test_fetch_rejects_unsupported_encoding_without_saving(

@@ -61,6 +61,13 @@ All notable changes to this project are documented here. The format follows
 - Fixture-fetch contracts also pin spaces and horizontal tabs around encoding tokens,
   including before commas, and repeated compression layers in their declared order.
   Manifest validation and storage use the fully decoded content.
+- Fixture-fetch contracts reject internal token whitespace and semicolon parameters,
+  while ignoring empty list elements before, between and after compression layers.
+- Concatenated gzip members all contribute to the validated and saved fixture, including
+  members nested under another compression layer and empty members.
+- Truncated gzip and incomplete Brotli streams are rejected without saving a fixture,
+  even when partial decompression produces all bytes expected by the manifest. Compression
+  formats must match their encoding labels; HTTP deflate requires the zlib wrapper.
 
 ## [0.2.0]
 

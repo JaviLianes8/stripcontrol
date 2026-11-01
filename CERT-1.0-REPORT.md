@@ -43,7 +43,7 @@ Progress:
 | 16 | Pending independent reviewer |
 | 17 | Merge and publication pending; PR and guard tracked above |
 | 18 | PASS: 29 deliberate mutations caught; table below |
-| 19 | Round 1 lenses a, c, e and rounds 2 and 3 lens e findings fixed below; re-verification pending |
+| 19 | Round 1 lenses a, c, e and rounds 2 through 4 lens e findings fixed below; re-verification pending |
 
 ## API and behavior
 
@@ -251,5 +251,50 @@ or timeouts. Both the unmodified and restored copies pass all 65 fetcher tests.
 All four release gates exit 0: `ruff format --check .` (38 files), `ruff check .`,
 `mypy --strict src` (8 files), and `pytest` (466 passed, no skips). Strict typing also
 passes for `src tests` (30 files). CPython 3.14.6, 300-second per-test timeout; both
+installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. A fresh fixture fetch
+verified all four unchanged manifest pins; Rich is installed for the oracle test.
+
+## QA round 4
+
+Reviewed base: `4aaf5cf1d962e8a2d618f6eb8a713fe76ea90c3f`. Date: 2026-11-01.
+Fix commit: pending (`pin remaining http decoding contracts`).
+All seven lens e findings are addressed; independent lens re-verification remains pending.
+These findings identify missing contracts. The reviewed decoder already implements the
+expected behavior, so the implementation and public API remain unchanged. CHANGELOG records
+the newly pinned guarantees under Clarified. No findings are disputed.
+
+| Finding | Changes and verification |
+| --- | --- |
+| E-13 | Reject internal spaces and tabs in Brotli, gzip, deflate and identity names, alone and inside stacks. Require `ValueError` and an empty destination. N01 fails 10 cases of `test_fetch_rejects_unsupported_encoding_without_saving`. |
+| E-14 | Reject semicolon parameters, including an empty parameter suffix, on individual encodings and stacked layers. Require `ValueError` without storage despite a matching decoded-content manifest. N02 fails 8 cases of `test_fetch_rejects_unsupported_encoding_without_saving`. |
+| E-15 | Ignore empty list elements before, between and after layers, including whitespace-only elements and identity. Validate and save fully decoded content only when the manifest matches. N03 fails 9 cases of `test_fetch_validates_and_saves_decoded_content`. |
+| E-16 | Decode every concatenated gzip member, including empty members and concatenated streams under Brotli. Require exact full-content storage and reject mismatched manifests. N06 fails the concatenated-member cases of `test_fetch_validates_and_saves_decoded_content`. |
+| E-17 | Reject gzip streams truncated in their headers, payloads or trailers, both alone and under Brotli. Require `EOFError` and an empty destination, including when a missing trailer still permits all manifest bytes to be emitted. N07 fails `test_fetch_rejects_truncated_gzip_without_saving`. |
+| E-18 | Reject mismatches between gzip, Brotli and zlib-wrapped deflate, including gzip labeled deflate under Brotli and raw deflate without its wrapper. Require the corresponding decoder error without storage. N08 fails 2 cases of `test_fetch_rejects_mislabeled_compression_without_saving`. |
+| E-19 | Reject incomplete Brotli headers, payloads and final markers, both alone and under gzip. Require `brotli.error` and an empty destination; the missing-marker body emits all expected bytes with an unfinished streaming decoder. N09 fails all 6 cases of `test_fetch_rejects_incomplete_brotli_without_saving`. |
+
+The ten exact N01 through N10 patches were applied separately in scratch copies before
+and after adding the contracts. All seven reported survivors originally passed all 65
+fetcher tests; N04, N05 and N10 were already caught. With the added contracts, all ten
+patches exit 1 through test failures, with no collection errors, skips or timeouts.
+The unmodified and restored copies both pass all 137 fetcher tests.
+
+| Mutation | Injected defect | Catching contract | Failing cases |
+| --- | --- | --- | --- |
+| N01 | Remove internal token whitespace | `test_fetch_rejects_unsupported_encoding_without_saving` | 10 |
+| N02 | Discard semicolon parameters | `test_fetch_rejects_unsupported_encoding_without_saving` | 8 |
+| N03 | Stop decoding at an empty element | `test_fetch_validates_and_saves_decoded_content` | 9 |
+| N04 | Treat any identity layer as wholly unencoded | `test_fetch_validates_and_saves_decoded_content` | 8 |
+| N05 | Sort encoding layers | `test_fetch_validates_and_saves_decoded_content` | 38 |
+| N06 | Decode only one gzip member | `test_fetch_validates_and_saves_decoded_content` | 17 |
+| N07 | Skip gzip completion validation | `test_fetch_rejects_truncated_gzip_without_saving` | 17 |
+| N08 | Auto-detect gzip as deflate | `test_fetch_rejects_mislabeled_compression_without_saving` | 2 |
+| N09 | Skip Brotli completion validation | `test_fetch_rejects_incomplete_brotli_without_saving` | 6 |
+| N10 | Split only the first coding separator | `test_fetch_validates_and_saves_decoded_content` | 34 |
+
+Failure counts include all affected tests; the named contract is one that catches the defect.
+All four release gates exit 0: `ruff format --check .` (39 files), `ruff check .`,
+`mypy --strict src` (8 files), and `pytest` (538 passed, no skips). Strict typing also
+passes for `src tests` (31 files). CPython 3.14.6, 300-second per-test timeout; both
 installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. A fresh fixture fetch
 verified all four unchanged manifest pins; Rich is installed for the oracle test.
