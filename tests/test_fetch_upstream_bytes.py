@@ -17,6 +17,17 @@ pytestmark = [
             pytest.param(b"", id="empty"),
             pytest.param(b"first\r\nsecond\r\n\r\nlast\r", id="crlf"),
             pytest.param(bytes(range(256)) + b"\xff\x00\xc0\xaf\xed\xa0\x80", id="binary"),
+            pytest.param(b"x\x00", id="trailing-nul"),
+            pytest.param(b"x\x00\x00", id="trailing-nuls"),
+            pytest.param(b"\x00\x00\x00", id="nul-only"),
+            pytest.param(b"\xef\xbb\xbftext", id="utf8-bom-prefix"),
+            pytest.param(b"\xef\xbb\xbf", id="utf8-bom-only"),
+            pytest.param(b"a" * 8192 + b"b", id="distinct-partial-block"),
+            pytest.param(b"a" * 8192 + b"b" * 8192, id="distinct-full-blocks"),
+            pytest.param(
+                b"a" * 8192 + b"b" * 8192 + b"final partial block",
+                id="distinct-full-and-partial-blocks",
+            ),
             *[
                 pytest.param((b"0123456789abcdef" * 1025)[:size], id=f"size-{size}")
                 for size in (8191, 8192, 8193, 16385)

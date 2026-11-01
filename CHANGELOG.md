@@ -73,6 +73,12 @@ All notable changes to this project are documented here. The format follows
 - Empty representations produce a zero-byte fixture when the manifest matches. Decoding
   and storage preserve CRLF, non-UTF-8 binary content and complete bodies across 8192-byte
   boundaries for identity, Brotli, gzip, deflate and stacked compression layers.
+- Fixture-fetch contracts preserve trailing NUL bytes, NUL-only content and UTF-8 BOMs,
+  plus distinct content in successive full blocks and the final partial block.
+- Successful fixture fetches replace existing files with exactly the validated bytes,
+  including repeated downloads, shorter replacements and empty replacements.
+- Fixture validation independently requires the declared size and the complete SHA-256
+  digest. A size-only mismatch or a digest differing only near its end prevents storage.
 
 ## [0.2.0]
 
