@@ -18,7 +18,7 @@ _ESCAPED = re.compile("[\udc80-\udcff]")
 
 
 def check_encoding(encoding: object) -> Encoding:
-    if not isinstance(encoding, str):
+    if not issubclass(type(encoding), str):
         raise TypeError("encoding must be str")
     encoding = str.__str__(encoding)
     if encoding == "utf-8":
@@ -97,7 +97,7 @@ def strip_control_bytes(
     >>> strip_control_bytes(b"a\x1b[31mb\x00")
     b'ab'
     """
-    if not isinstance(data, (bytes, bytearray, memoryview)):
+    if not issubclass(type(data), (bytes, bytearray, memoryview)):
         raise TypeError("data must be bytes, bytearray or memoryview")
     codec = check_encoding(encoding)
     text = memoryview(data).tobytes().decode(codec, ERRORS)

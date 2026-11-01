@@ -32,13 +32,13 @@ def pattern(format_chars: bool) -> re.Pattern[str]:
 
 
 def check_text(text: object, name: str = "text") -> str:
-    if not isinstance(text, str):
+    if not issubclass(type(text), str):
         raise TypeError(f"{name} must be str")
     return str.__str__(text)
 
 
 def check_bool(value: bool, name: str) -> None:
-    if not isinstance(value, bool):
+    if type(value) is not bool:
         raise TypeError(f"{name} must be bool")
 
 

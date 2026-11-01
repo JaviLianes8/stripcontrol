@@ -16,6 +16,8 @@ from ._control import STANDARD_WHITESPACE, escape_control, find_control, has_con
 from ._format_table import UNICODE_VERSION
 from ._stripper import ControlStripper, strip_control
 
+del annotations
+
 __version__ = "1.0.0"
 
 ControlStripper.__module__ = "stripcontrol"

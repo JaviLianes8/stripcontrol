@@ -88,7 +88,8 @@ def test_a_missing_file_is_reported_and_the_rest_still_run(
 ) -> None:
     good = tmp_path / "good.log"
     good.write_bytes(b"ok\x00\n")
-    code, out = _run(monkeypatch, [str(tmp_path / "missing.log"), str(good)])
+    monkeypatch.chdir(tmp_path)
+    code, out = _run(monkeypatch, ["missing.log", "good.log"])
     assert (code, out) == (2, b"ok\n")
     assert "missing.log" in capsys.readouterr().err
 

@@ -19,9 +19,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Remove the unintended `annotations` attribute from the package namespace; `__all__`
+  retains the same eight names.
 - `sequences` and `format_chars` require actual booleans. Previously arbitrary truthy or
   falsey objects were accepted. Invalid values now raise `TypeError`, including empty input.
 - Type and encoding errors use fixed messages without input values or type names.
+  Validation does not invoke input inspection hooks such as a custom `__class__`.
   A non-string encoding now raises `TypeError`; an unsupported string still raises
   `ValueError`. A released memoryview raises `ValueError` as before.
 - String subclasses are read as their underlying text and bytes subclasses as their actual
@@ -33,7 +36,9 @@ All notable changes to this project are documented here. The format follows
   report the error number instead of an arbitrary OS error payload. File labels are escaped
   and limited to 120 characters plus an ellipsis. Closed output pipes close the stream
   quietly without opening a device file; exit codes are unchanged.
-
+- The release helper checks whether the target version exists, allowing upgrades to an
+  existing project. It refuses dirty builds, uses a fresh output folder, and stops on
+  build or archive validation errors.
 
 ## [0.2.0]
 

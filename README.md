@@ -140,8 +140,8 @@ subset is compared with Rich's real output in the tests.
 
 `python scripts/fetch_upstream.py` fetches the pinned Unicode and xterm files that some
 tests read (they skip without them); `python scripts/gen_format_table.py` regenerates the
-format character table. `scripts/check.ps1` runs the whole gate. Set `STRIPCONTROL_UPSTREAM` to choose a local
-download folder. Set `STRIPCONTROL_E2E=1` for wheel and CLI checks and
+format character table. `scripts/check.ps1` runs the whole gate. Set
+`STRIPCONTROL_UPSTREAM` to choose a local download folder. Set `STRIPCONTROL_E2E=1` for wheel and CLI checks and
 `STRIPCONTROL_E2E_PYPI=1` to also exercise the upgrade from PyPI 0.2.0.
 Tests require `pytest-timeout` and use a 300-second per-test limit. Pass
 `pytest --basetemp <scratch-folder>` to control temporary test files.
