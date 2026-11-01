@@ -80,3 +80,23 @@ def test_fetch_rejects_digest_suffix_mismatch_without_saving(
 
     assert fetch_upstream.main() == 1
     assert list(destination.iterdir()) == []
+
+
+@pytest.mark.parametrize("mismatch", ["size-too-small", "size-too-large", "digest"])
+def test_fetch_preserves_existing_fixture_when_validation_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, coding: str, mismatch: str
+) -> None:
+    destination = _prepare_fetch(
+        monkeypatch, tmp_path, coding, _wire(BODY, coding), valid=mismatch != "digest"
+    )
+    if mismatch != "digest":
+        manifest_path = tmp_path / "MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["reference.txt"]["size"] += -1 if mismatch == "size-too-small" else 1
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    destination.mkdir()
+    fixture = destination / "reference.txt"
+    fixture.write_bytes(b"old")
+
+    assert fetch_upstream.main() == 1
+    assert fixture.read_bytes() == b"old"

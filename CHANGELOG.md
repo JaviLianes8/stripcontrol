@@ -79,6 +79,11 @@ All notable changes to this project are documented here. The format follows
   including repeated downloads, shorter replacements and empty replacements.
 - Fixture validation independently requires the declared size and the complete SHA-256
   digest. A size-only mismatch or a digest differing only near its end prevents storage.
+- Fixture-fetch contracts require every valid manifest entry to be fetched and saved.
+  A rejected entry does not stop later downloads, and later success does not clear an
+  earlier failure from the final exit status.
+- Rejected fixture bytes preserve any existing file for both size and digest mismatches.
+  With `STRIPCONTROL_UPSTREAM` unset, validated files are saved beside the manifest.
 
 ## [0.2.0]
 
