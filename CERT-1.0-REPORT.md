@@ -15,7 +15,7 @@ Progress:
 - [x] Built wheel, sdist inspection, upgrade, Python matrix (items 8, 10, 14)
 - [x] Final separate gates (item 15)
 - [x] Mutation round and table (item 18): 29 of 29 caught
-- [ ] PR and guard
+- [x] [PR #3](https://github.com/JaviLianes8/stripcontrol/pull/3), `release/1.0.0`; guard CLEAN
 - [ ] Independent reviewer (item 16, pending)
 - [ ] Merge and publication (item 17, pending)
 - [ ] Five independent QA lenses (item 19, pending)
