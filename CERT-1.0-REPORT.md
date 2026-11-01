@@ -43,7 +43,7 @@ Progress:
 | 16 | Pending independent reviewer |
 | 17 | Merge and publication pending; PR and guard tracked above |
 | 18 | PASS: 29 deliberate mutations caught; table below |
-| 19 | Round 1 lenses a, c, e and rounds 2 through 6 lens e findings fixed below; re-verification pending |
+| 19 | Round 1 lenses a, c, e and rounds 2 through 7 lens e findings fixed below; re-verification pending |
 
 ## API and behavior
 
@@ -368,5 +368,38 @@ The unmodified and restored copies both pass all 397 fetcher tests.
 All four release gates exit 0: `ruff format --check .` (42 files), `ruff check .`,
 `mypy --strict src` (8 files), and `pytest` (798 passed, no skips). Strict typing also
 passes for `src tests` (34 files). CPython 3.14.6, 300-second per-test timeout; both
+installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. A fresh fixture fetch
+verified all four unchanged manifest pins; Rich is installed for the oracle test.
+
+## QA round 7
+
+Reviewed base: `355643841a4c5f694149aed36c3fe0dae5eb84b9`. Date: 2026-11-01.
+Fix commit: `c421094fed7fb16814f957c35bb6031ee76edd66` (`pin manifest processing contracts`).
+All five lens e findings are addressed; independent lens re-verification remains pending.
+These findings identify missing contracts. The added tests pass on the unchanged fetcher
+and fail when the reported defects are injected. The implementation and public API remain
+unchanged. CHANGELOG records the guarantees under Clarified. No findings are disputed.
+
+| Finding | Changes and verification |
+| --- | --- |
+| E-32 | Fetch a three-entry manifest with distinct text, empty and binary bodies. Require every URL to be requested and every file to contain its own exact bytes. Q06 fails 12 cases, including `test_fetch_saves_every_valid_manifest_entry`. |
+| E-33 | Reject the first entry for size or digest mismatch, then process two valid entries. Require final exit status 1. Q07 fails 12 cases, including `test_fetch_keeps_earlier_failure_status_after_success`. |
+| E-34 | After a size or digest mismatch, require both later valid entries to be fetched and saved, with no rejected file stored. Q08 fails all 6 cases of `test_fetch_continues_after_rejected_manifest_entry`. |
+| E-35 | Prepopulate a fixture with old bytes, then reject a response for a size declared too small, too large or a wrong digest. Require exit 1 and unchanged existing bytes. Q09 fails all 9 cases of `test_fetch_preserves_existing_fixture_when_validation_fails`. |
+| E-36 | Explicitly unset `STRIPCONTROL_UPSTREAM`, redirect the manifest directory to a temporary path, and require successful storage beside the manifest. Q10 fails all 3 cases of `test_fetch_defaults_to_manifest_directory_when_destination_is_unset`. |
+
+The 27 added cases introduce `tests/test_fetch_upstream_manifest.py` and extend
+`tests/test_fetch_upstream_storage.py`. Each behavior runs with absent encoding, gzip
+and a gzip/deflate/Brotli stack. HTTP responses are injected; payloads are handwritten
+or compressed locally from handwritten bytes. Temporary files stay in scratch storage.
+
+The exact Q06 through Q10 patches were replayed serially in a scratch copy before and
+after adding the contracts. Each originally passed all 397 fetcher tests. With the added
+contracts, all five patches exit 1 through test failures, with no collection errors,
+skips or timeouts. The unmodified and restored copies both pass all 424 fetcher tests.
+
+All four release gates exit 0: `ruff format --check .` (43 files), `ruff check .`,
+`mypy --strict src` (8 files), and `pytest` (825 passed, no skips). Strict typing also
+passes for `src tests` (35 files). CPython 3.14.6, 300-second per-test timeout; both
 installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. A fresh fixture fetch
 verified all four unchanged manifest pins; Rich is installed for the oracle test.
