@@ -1,7 +1,7 @@
 # stripcontrol 1.0.0 certification report
 
 Date: 2026-11-01. Preparation resumed from d70db60; main is aacacb6.
-Preparation evidence below predates the fixes recorded in QA round 1 at the end.
+Preparation evidence below predates the fixes recorded in the QA rounds at the end.
 PyPI has only 0.2.0. Its downloaded wheel has SHA-256
 `70e29596b52985a7e8c173ebb1fa7a721e5b6ada0063f8ad6507523c49184a56`.
 Every package file matches main after newline normalization.
@@ -43,7 +43,7 @@ Progress:
 | 16 | Pending independent reviewer |
 | 17 | Merge and publication pending; PR and guard tracked above |
 | 18 | PASS: 29 deliberate mutations caught; table below |
-| 19 | Round 1 lenses a, c, e: FAIL; findings fixed below, re-verification pending |
+| 19 | Round 1 lenses a, c, e and round 2 lens e findings fixed below; re-verification pending |
 
 ## API and behavior
 
@@ -198,3 +198,29 @@ The seven survivor patches were replayed separately in scratch copies: seven ass
 zero survivors or collection errors. All four gates exit 0; strict typing also covers tests.
 CPython 3.14.6: 413 passed, no skips, 300-second per-test timeout, both packaging flags enabled.
 Public names, signatures and defaults remain unchanged. No findings are disputed.
+
+## QA round 2
+
+Reviewed base: `9f757d095ca73f8daaac809c3786969fd3dc2d47`. Date: 2026-11-01.
+Fix commit: `pin http fixture decoding contracts`.
+All three lens e findings are addressed; independent lens re-verification remains pending.
+These findings identify missing contracts. The current decoder already has the expected
+behavior, so its implementation and the public API remain unchanged. CHANGELOG records
+the newly pinned behavior under Clarified. No findings are disputed.
+
+| Finding | Changes and verification |
+| --- | --- |
+| E-07 | Test mixed-case Brotli, gzip and deflate names individually and in a three-codec stack. Verify decoded bytes are saved only when the manifest matches. N21 now fails 10 cases of `test_fetch_validates_and_saves_decoded_content`. |
+| E-08 | Reject unsupported coding alone and on either side of gzip with a matching decoded-content manifest. Require `ValueError` and an empty destination. N23 now fails all 3 cases of `test_fetch_rejects_unsupported_encoding_without_saving`. |
+| E-09 | Pin `identity` as a no-op at the start, middle and end of stacks, including repeated and mixed-case tokens. Continue decoding all remaining codings before validating and saving. N24 now fails 4 cases of `test_fetch_validates_and_saves_decoded_content`. |
+
+The exact N21, N23 and N24 patches were applied separately to scratch copies before and
+after adding the contracts. Each originally passed all 12 fetcher tests (exit 0). With
+the added contracts each exits 1 through test failures, with no collection errors, skips
+or timeouts. The unmodified and restored copies both pass all 33 fetcher tests.
+
+All four release gates exit 0: `ruff format --check .` (38 files), `ruff check .`,
+`mypy --strict src` (8 files), and `pytest` (434 passed, no skips). Strict typing also
+passes for `src tests` (30 files). CPython 3.14.6, 300-second per-test timeout; both
+installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. A fresh fixture fetch
+verified all four unchanged manifest pins; Rich is installed for the oracle test.

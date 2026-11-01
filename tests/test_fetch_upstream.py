@@ -29,21 +29,9 @@ class _Response(io.BytesIO):
             self.headers["Content-Encoding"] = coding
 
 
-@pytest.mark.parametrize(
-    ("coding", "wire"),
-    [
-        ("", BODY),
-        ("identity", BODY),
-        ("br", brotli.compress(BODY)),
-        ("gzip", gzip.compress(BODY)),
-        ("deflate", zlib.compress(BODY)),
-        ("gzip, br", brotli.compress(gzip.compress(BODY))),
-    ],
-)
-@pytest.mark.parametrize("valid", [True, False])
-def test_fetch_validates_and_saves_decoded_content(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, coding: str, wire: bytes, valid: bool
-) -> None:
+def _prepare_fetch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, coding: str, wire: bytes, valid: bool = True
+) -> Path:
     manifest = {
         "reference.txt": {
             "url": "https://example.test/reference",
@@ -56,8 +44,53 @@ def test_fetch_validates_and_saves_decoded_content(
     monkeypatch.setattr(fetch_upstream, "FOLDER", tmp_path)
     monkeypatch.setenv("STRIPCONTROL_UPSTREAM", str(destination))
     monkeypatch.setattr(urllib.request, "urlopen", lambda *args, **kwargs: _Response(wire, coding))
+    return destination
+
+
+@pytest.mark.parametrize(
+    ("coding", "wire"),
+    [
+        ("", BODY),
+        ("identity", BODY),
+        ("br", brotli.compress(BODY)),
+        ("gzip", gzip.compress(BODY)),
+        ("deflate", zlib.compress(BODY)),
+        ("gzip, br", brotli.compress(gzip.compress(BODY))),
+        ("bR", brotli.compress(BODY)),
+        ("GZip", gzip.compress(BODY)),
+        ("DeFlAtE", zlib.compress(BODY)),
+        ("GZip, DeFlAtE, bR", brotli.compress(zlib.compress(gzip.compress(BODY)))),
+        ("identity, gzip", gzip.compress(BODY)),
+        ("gzip, identity", gzip.compress(BODY)),
+        ("identity, gzip, identity", gzip.compress(BODY)),
+        ("gzip, identity, br", brotli.compress(gzip.compress(BODY))),
+        ("IdEnTiTy, GZip, identity, bR, IdEnTiTy", brotli.compress(gzip.compress(BODY))),
+    ],
+)
+@pytest.mark.parametrize("valid", [True, False])
+def test_fetch_validates_and_saves_decoded_content(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, coding: str, wire: bytes, valid: bool
+) -> None:
+    destination = _prepare_fetch(monkeypatch, tmp_path, coding, wire, valid)
     assert fetch_upstream.main() == (0 if valid else 1)
     if valid:
         assert (destination / "reference.txt").read_bytes() == BODY
     else:
         assert not (destination / "reference.txt").exists()
+
+
+@pytest.mark.parametrize(
+    ("coding", "wire"),
+    [
+        ("unsupported-coding", BODY),
+        ("gzip, unsupported-coding", gzip.compress(BODY)),
+        ("unsupported-coding, gzip", gzip.compress(BODY)),
+    ],
+)
+def test_fetch_rejects_unsupported_encoding_without_saving(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, coding: str, wire: bytes
+) -> None:
+    destination = _prepare_fetch(monkeypatch, tmp_path, coding, wire)
+    with pytest.raises(ValueError, match=r"^unsupported HTTP content encoding$"):
+        fetch_upstream.main()
+    assert list(destination.iterdir()) == []

@@ -55,6 +55,9 @@ All notable changes to this project are documented here. The format follows
   unfinished sequences. Normal EOF finalizes buffered bytes. Later files still run.
 - Contracts now pin every stream option across repeated close/reuse, the bare ESC final-byte
   boundary, exact encoding names, and UTF-8 check reports with non-ASCII filenames.
+- Fixture-fetch contracts pin case-insensitive HTTP content encodings, including stacks.
+  `identity` remains a no-op anywhere in a stack; unsupported encodings raise `ValueError`
+  without saving a fixture, even when the decoded bytes would match the manifest.
 
 ## [0.2.0]
 
