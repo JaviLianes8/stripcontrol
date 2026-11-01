@@ -43,7 +43,7 @@ Progress:
 | 16 | Pending independent reviewer |
 | 17 | Merge and publication pending; PR and guard tracked above |
 | 18 | PASS: 29 deliberate mutations caught; table below |
-| 19 | Round 1 lenses a, c, e and round 2 lens e findings fixed below; re-verification pending |
+| 19 | Round 1 lenses a, c, e and rounds 2 and 3 lens e findings fixed below; re-verification pending |
 
 ## API and behavior
 
@@ -221,6 +221,35 @@ or timeouts. The unmodified and restored copies both pass all 33 fetcher tests.
 
 All four release gates exit 0: `ruff format --check .` (38 files), `ruff check .`,
 `mypy --strict src` (8 files), and `pytest` (434 passed, no skips). Strict typing also
+passes for `src tests` (30 files). CPython 3.14.6, 300-second per-test timeout; both
+installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. A fresh fixture fetch
+verified all four unchanged manifest pins; Rich is installed for the oracle test.
+
+## QA round 3
+
+Reviewed base: `b3e481dfd82957ca77085990127d99feb458efa3`. Date: 2026-11-01.
+Fix commit: `b9761dfd1b5bbbc396dfffdc7b9427eded47c14e` (`pin whitespace and repeated encoding contracts`).
+All three lens e findings are addressed; independent lens re-verification remains pending.
+These findings identify missing contracts, and the reviewed decoder already passes the
+reported behaviors. Its implementation and public API remain unchanged. CHANGELOG records
+the added guarantees under Clarified. No findings are disputed.
+
+| Finding | Changes and verification |
+| --- | --- |
+| E-10 | Pin horizontal tabs around Brotli, gzip and deflate tokens, alone and in stacks, including mixed spaces and case. R02 now fails 12 cases of `test_fetch_validates_and_saves_decoded_content`. |
+| E-11 | Pin trailing spaces on each codec and whitespace before commas in two- and three-codec stacks. R03 now fails 22 cases of `test_fetch_validates_and_saves_decoded_content`. |
+| E-12 | Pin twice-compressed gzip, Brotli and deflate bodies, repeated codecs separated by another codec, and mixed-case repeated gzip around `identity`. R08 now fails 6 cases of `test_fetch_validates_and_saves_decoded_content`. |
+
+Each added case verifies both outcomes: a matching manifest saves the exact fully decoded
+bytes, and a mismatched manifest rejects the content without saving a fixture.
+
+The exact R02, R03 and R08 patches were replayed separately in scratch copies before and
+after adding the contracts. Each originally passed all 33 fetcher tests (exit 0). With
+the added contracts, each exits 1 through test failures, without collection errors, skips
+or timeouts. Both the unmodified and restored copies pass all 65 fetcher tests.
+
+All four release gates exit 0: `ruff format --check .` (38 files), `ruff check .`,
+`mypy --strict src` (8 files), and `pytest` (466 passed, no skips). Strict typing also
 passes for `src tests` (30 files). CPython 3.14.6, 300-second per-test timeout; both
 installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. A fresh fixture fetch
 verified all four unchanged manifest pins; Rich is installed for the oracle test.
