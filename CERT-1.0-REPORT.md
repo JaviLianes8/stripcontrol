@@ -43,7 +43,7 @@ Progress:
 | 16 | Pending independent reviewer |
 | 17 | Merge and publication pending; PR and guard tracked above |
 | 18 | PASS: 29 deliberate mutations caught; table below |
-| 19 | Round 1 lenses a, c, e and rounds 2 through 7 lens e findings fixed below; re-verification pending |
+| 19 | Round 1 lenses a, c, e and rounds 2 through 8 lens e findings fixed below; re-verification pending |
 
 ## API and behavior
 
@@ -403,3 +403,37 @@ All four release gates exit 0: `ruff format --check .` (43 files), `ruff check .
 passes for `src tests` (35 files). CPython 3.14.6, 300-second per-test timeout; both
 installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. A fresh fixture fetch
 verified all four unchanged manifest pins; Rich is installed for the oracle test.
+
+## QA round 8
+
+Reviewed base: `81c28bce992c2023aa51480e4a94eb383b29d9d8`. Date: 2026-11-01.
+Fix commit: `1d47913b33c8057d223145341f3eeac96b660cd5` (`pin manifest rejection and destination contracts`).
+All five lens e findings are addressed; independent lens re-verification remains pending.
+These findings identify missing contracts. The added tests pass on the unchanged fetcher
+and fail when the reported defects are injected. The implementation and public API remain
+unchanged. CHANGELOG records the guarantees under Clarified. No findings are disputed.
+
+| Finding | Changes and verification |
+| --- | --- |
+| E-37 | Reject two or three entries for size or digest mismatch and require exactly exit status 1. R01 fails all 12 cases of `test_fetch_returns_status_one_for_multiple_rejections`. |
+| E-38 | Require exit status 1 for an even rejection count, while checking every request and the exact remaining files. R02 fails the 6 two-rejection cases of the same contract. |
+| E-39 | Reject either the second or third entry for size or digest mismatch after a successful first entry. Require exit 1, complete processing and no rejected file. R03 fails 24 cases, including all 12 cases of `test_fetch_rejects_mismatch_after_successful_entry`. |
+| E-40 | Save a valid fixture beneath three missing destination directories and check exact bytes. R04 fails all 3 cases of `test_fetch_creates_missing_destination_ancestors`. |
+| E-41 | Write UTF-8 JSON with literal unescaped Latin and Japanese filenames; require successful validation and exact stored names and bytes. R06 fails all 6 cases of `test_fetch_reads_literal_utf8_manifest_filenames`. |
+
+The 33 added cases extend `tests/test_fetch_upstream_manifest.py` and
+`tests/test_fetch_upstream_storage.py`. Each behavior runs with absent encoding, gzip
+and a gzip/deflate/Brotli stack. HTTP responses are injected; payloads are handwritten
+or compressed locally from handwritten bytes. Temporary files stay in scratch storage.
+
+The exact R01, R02, R03, R04 and R06 patches were replayed serially in a scratch copy
+before and after adding the contracts. Each originally passed all 424 fetcher tests.
+With the added contracts, all five patches exit 1 through test failures, with no
+collection errors, skips or timeouts. The unmodified and restored copies both pass
+all 457 fetcher tests.
+
+All four release gates exit 0: `ruff format --check .` (43 files), `ruff check .`,
+`mypy --strict src` (8 files), and `pytest` (858 passed, no skips). Strict typing also
+passes for `src tests` (35 files). CPython 3.14.6, 300-second per-test timeout; both
+installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. All four pinned upstream
+fixtures and Rich are present for the ground-truth and oracle tests.
