@@ -68,6 +68,11 @@ All notable changes to this project are documented here. The format follows
 - Truncated gzip and incomplete Brotli streams are rejected without saving a fixture,
   even when partial decompression produces all bytes expected by the manifest. Compression
   formats must match their encoding labels; HTTP deflate requires the zlib wrapper.
+- Fixture-fetch contracts reject truncated deflate streams and corrupted Adler-32
+  checksums without saving, including streams nested under another compression layer.
+- Empty representations produce a zero-byte fixture when the manifest matches. Decoding
+  and storage preserve CRLF, non-UTF-8 binary content and complete bodies across 8192-byte
+  boundaries for identity, Brotli, gzip, deflate and stacked compression layers.
 
 ## [0.2.0]
 
