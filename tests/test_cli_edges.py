@@ -54,13 +54,31 @@ def test_a_read_error_is_reported_and_the_next_file_still_runs(
     monkeypatch.setattr(_cli, "_open", lambda name: contextlib.nullcontext(streams[name]))
     code, out, _ = _run(monkeypatch, ["bad", "good"])
     assert (code, out) == (2, b"onetwo\n")
-    assert capsys.readouterr().err == f"stripcontrol: bad: {error.strerror}\n"
+    assert (
+        capsys.readouterr().err
+        == f"stripcontrol: bad: input could not be read (errno {error.errno})\n"
+    )
 
 
 def test_a_read_error_in_check_mode_is_not_exit_1(monkeypatch: pytest.MonkeyPatch) -> None:
     failing = _Failing(b"ok\n", OSError(errno.EIO, "I/O error"))
     monkeypatch.setattr(_cli, "_open", lambda name: contextlib.nullcontext(failing))
     assert _run(monkeypatch, ["--check", "x"])[:2] == (2, b"")
+
+
+@pytest.mark.parametrize("tail", [b"\xc2", b"\xe0", b"\xef\xbb", b"\xf0", b"\xf4", b"\xf4\xa0"])
+@pytest.mark.parametrize("separator", [b"", b"\x00"])
+def test_read_errors_discard_pending_utf8_tails_but_keep_emitted_output(
+    monkeypatch: pytest.MonkeyPatch, tail: bytes, separator: bytes
+) -> None:
+    streams = {
+        "bad": _Failing(b"prefix" + tail + separator, OSError(errno.EIO, "read failure")),
+        "good": io.BytesIO(b"next\x00"),
+    }
+    monkeypatch.setattr(_cli, "_open", lambda name: contextlib.nullcontext(streams[name]))
+    assert _run(monkeypatch, ["bad", "good"])[:2] == (2, b"prefixnext")
+    monkeypatch.undo()
+    assert _run(monkeypatch, [], b"prefix" + tail + separator)[:2] == (0, b"prefix" + tail)
 
 
 def test_chars_only_is_refused_outside_strip_mode(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -27,21 +27,32 @@ CONTROLS_AND_FORMAT = re.compile(f"[{_CONTROL_CLASS}{_FORMAT_CLASS}]")
 
 def pattern(format_chars: bool) -> re.Pattern[str]:
     """The character class to act on: controls, plus format characters when asked."""
+    check_bool(format_chars, "format_chars")
     return CONTROLS_AND_FORMAT if format_chars else CONTROLS
 
 
 def check_text(text: object, name: str = "text") -> str:
-    if not isinstance(text, str):
-        raise TypeError(f"{name} must be str, not {type(text).__name__}")
-    return text
+    if not issubclass(type(text), str):
+        raise TypeError(f"{name} must be str")
+    return str.__str__(text)
+
+
+def check_bool(value: bool, name: str) -> None:
+    if type(value) is not bool:
+        raise TypeError(f"{name} must be bool")
 
 
 def has_control(text: str, *, keep: str = STANDARD_WHITESPACE, format_chars: bool = False) -> bool:
-    """Report whether ``text`` holds a control character that is not in ``keep``.
+    r"""Report whether ``text`` holds a control character that is not in ``keep``.
 
     With ``format_chars=True`` Unicode format characters (category Cf) count as well.
+    Wrong argument types raise TypeError without quoting input.
+
+    >>> from stripcontrol import has_control
+    >>> has_control("ok\n"), has_control("x\x00")
+    (False, True)
     """
-    check_text(text)
+    text = check_text(text)
     kept = frozenset(check_text(keep, "keep"))
     return any(match.group() not in kept for match in pattern(format_chars).finditer(text))
 
@@ -49,11 +60,16 @@ def has_control(text: str, *, keep: str = STANDARD_WHITESPACE, format_chars: boo
 def find_control(
     text: str, *, keep: str = STANDARD_WHITESPACE, format_chars: bool = False
 ) -> list[tuple[int, int]]:
-    """List ``(index, codepoint)`` for each control character in ``text`` not in ``keep``.
+    r"""List ``(index, codepoint)`` for each control character in ``text`` not in ``keep``.
 
     With ``format_chars=True`` Unicode format characters (category Cf) are listed too.
+    Indexes count Unicode code points, starting at zero. Wrong types raise TypeError.
+
+    >>> from stripcontrol import find_control
+    >>> find_control("a\x00b\n")
+    [(1, 0)]
     """
-    check_text(text)
+    text = check_text(text)
     kept = frozenset(check_text(keep, "keep"))
     return [
         (match.start(), ord(match.group()))
@@ -65,13 +81,18 @@ def find_control(
 def escape_control(
     text: str, *, keep: str = STANDARD_WHITESPACE, format_chars: bool = False
 ) -> str:
-    """Return ``text`` with each control character not in ``keep`` written as an escape.
+    r"""Return ``text`` with each control character not in ``keep`` written as an escape.
 
-    A character below U+0100 becomes ``\\xNN``, others ``\\uNNNN`` or ``\\UNNNNNNNN``, so
+    A character below U+0100 becomes ``\xNN``, others ``\uNNNN`` or ``\UNNNNNNNN``, so
     a log keeps the evidence of an escape sequence without the terminal acting on it. The
     result is meant for display: backslashes already in ``text`` are left as they are.
+    Wrong argument types raise TypeError.
+
+    >>> from stripcontrol import escape_control
+    >>> print(escape_control("a\x1b[31m"))
+    a\x1b[31m
     """
-    check_text(text)
+    text = check_text(text)
     kept = frozenset(check_text(keep, "keep"))
 
     def replace(match: re.Match[str]) -> str:

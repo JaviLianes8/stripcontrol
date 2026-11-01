@@ -84,15 +84,15 @@ def test_bytearray_and_memoryview_are_accepted() -> None:
 
 
 def test_text_is_rejected() -> None:
-    with pytest.raises(TypeError, match="data must be bytes, not str"):
+    with pytest.raises(TypeError, match="data must be bytes, bytearray or memoryview"):
         strip_control_bytes("abc")  # type: ignore[arg-type]
 
 
 def test_keep_must_be_text() -> None:
-    with pytest.raises(TypeError, match="keep must be str, not bytes"):
+    with pytest.raises(TypeError, match="keep must be str"):
         strip_control_bytes(b"abc", keep=b"\n")  # type: ignore[arg-type]
 
 
 def test_unknown_encoding_is_rejected() -> None:
-    with pytest.raises(ValueError, match="encoding must be 'utf-8' or 'latin-1', not 'cp1252'"):
+    with pytest.raises(ValueError, match="encoding must be 'utf-8' or 'latin-1'"):
         strip_control_bytes(b"abc", encoding="cp1252")  # type: ignore[arg-type]

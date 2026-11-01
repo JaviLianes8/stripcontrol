@@ -118,11 +118,11 @@ def test_escape_control_writes_format_characters_by_width() -> None:
 
 @pytest.mark.parametrize("function", [strip_control, has_control, find_control, escape_control])
 def test_text_must_be_str(function: object) -> None:
-    with pytest.raises(TypeError, match="text must be str, not bytes"):
+    with pytest.raises(TypeError, match="text must be str"):
         function(b"abc")  # type: ignore[operator]
 
 
 @pytest.mark.parametrize("function", [strip_control, has_control, find_control, escape_control])
 def test_keep_must_be_str(function: object) -> None:
-    with pytest.raises(TypeError, match="keep must be str, not list"):
+    with pytest.raises(TypeError, match="keep must be str"):
         function("abc", keep=["\n"])  # type: ignore[operator]

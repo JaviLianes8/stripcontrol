@@ -6,19 +6,18 @@ import argparse
 import codecs
 import contextlib
 import errno
-import os
-import re
 import sys
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import AbstractContextManager
 from typing import BinaryIO
 
 from ._bytes import ERRORS, STRAY_C1, Encoding, unjoin
+from ._cli_errors import Parser
+from ._cli_errors import shown as _shown
 from ._control import STANDARD_WHITESPACE, escape_char, escape_control, find_control
 from ._stripper import ControlStripper
 
 _CHUNK = 1 << 16
-_SURROGATE = re.compile("[\ud800-\udfff]")
 
 
 class _InputError(Exception):
@@ -30,7 +29,7 @@ class _InputError(Exception):
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = Parser(
         prog="stripcontrol",
         description="Copy FILEs (or stdin) to stdout without control characters and "
         "terminal escape sequences.",
@@ -73,7 +72,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             try:
                 status = max(status, _run(name, args))
             except _InputError as failure:
-                reason = failure.error.strerror or failure.error
+                reason = f"input could not be read (errno {failure.error.errno})"
                 print(f"stripcontrol: {_shown(name)}: {reason}", file=sys.stderr)
                 status = 2
     except OSError as error:
@@ -81,7 +80,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         # reports that as EINVAL.
         if not isinstance(error, BrokenPipeError) and error.errno != errno.EINVAL:
             raise
-        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        with contextlib.suppress(OSError):
+            sys.stdout.close()
     return status
 
 
@@ -169,18 +169,6 @@ def _advance(text: str, start: int, stop: int, line: int, column: int) -> tuple[
     if newlines:
         return line + newlines, stop - text.rindex("\n", start, stop)
     return line, column + stop - start
-
-
-def _shown(name: str) -> str:
-    # A file name is untrusted text too: its controls, format characters and undecodable
-    # bytes (lone surrogates) are written as escapes, never raw.
-    shown = escape_control(name, keep="", format_chars=True)
-
-    def surrogate(match: re.Match[str]) -> str:
-        code = ord(match.group())
-        return escape_char(code - 0xDC00 if code >= 0xDC80 else code)
-
-    return _SURROGATE.sub(surrogate, shown)
 
 
 def _write(data: bytes) -> None:

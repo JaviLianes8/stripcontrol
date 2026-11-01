@@ -22,6 +22,10 @@ def test_all_lists_exactly_the_public_api() -> None:
     assert sorted(stripcontrol.__all__) == sorted(PUBLIC_API)
 
 
+def test_public_namespace_contains_only_documented_exports() -> None:
+    assert {name for name in vars(stripcontrol) if not name.startswith("_")} == set(PUBLIC_API)
+
+
 def test_every_exported_name_resolves() -> None:
     for name in stripcontrol.__all__:
         assert hasattr(stripcontrol, name)
