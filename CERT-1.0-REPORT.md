@@ -202,7 +202,7 @@ Public names, signatures and defaults remain unchanged. No findings are disputed
 ## QA round 2
 
 Reviewed base: `9f757d095ca73f8daaac809c3786969fd3dc2d47`. Date: 2026-11-01.
-Fix commit: `pin http fixture decoding contracts`.
+Fix commit: `83be0e3a1c11a09f5dde6388d308262f8b49e654` (`pin http fixture decoding contracts`).
 All three lens e findings are addressed; independent lens re-verification remains pending.
 These findings identify missing contracts. The current decoder already has the expected
 behavior, so its implementation and the public API remain unchanged. CHANGELOG records
