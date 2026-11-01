@@ -1,6 +1,7 @@
 # stripcontrol 1.0.0 certification report
 
 Date: 2026-11-01. Preparation resumed from d70db60; main is aacacb6.
+Preparation evidence below predates the fixes recorded in QA round 1 at the end.
 PyPI has only 0.2.0. Its downloaded wheel has SHA-256
 `70e29596b52985a7e8c173ebb1fa7a721e5b6ada0063f8ad6507523c49184a56`.
 Every package file matches main after newline normalization.
@@ -42,7 +43,7 @@ Progress:
 | 16 | Pending independent reviewer |
 | 17 | Merge and publication pending; PR and guard tracked above |
 | 18 | PASS: 29 deliberate mutations caught; table below |
-| 19 | Pending five independent QA lenses; no verdicts recorded |
+| 19 | Round 1 lenses a, c, e: FAIL; findings fixed below, re-verification pending |
 
 ## API and behavior
 
@@ -50,7 +51,7 @@ The same eight names, signatures and defaults as 0.2.0 are retained. New runtime
 require actual booleans and distinguish wrong encoding types from unsupported strings.
 Errors never quote input values. Text and buffer subclasses use stored data. CLI diagnostics
 are bounded; closed output pipes close without a device file. All differences appear in
-CHANGELOG 1.0.0 and GUIDE. Existing text and byte filtering rules are unchanged.
+CHANGELOG 1.0.0 and GUIDE. QA round 1 corrects kept string terminators in text and bytes.
 The unintended `annotations` attribute is removed; the public namespace now matches
 `__all__` exactly, with a contract that runs on every supported interpreter.
 
@@ -173,8 +174,27 @@ The complete wheel/upgrade suite on the unmodified tree passed 267 tests.
 
 ## Tested archive hashes
 
-`stripcontrol-1.0.0-py3-none-any.whl` SHA-256:
-`eac999167b8e0b0ef57315e2c450a0c386c78e4e0e87adc65757b5f17e40faa8`.
+Preparation wheel SHA-256: `eac999167b8e0b0ef57315e2c450a0c386c78e4e0e87adc65757b5f17e40faa8`.
+Preparation sdist SHA-256: `45919bf97970e0c02ad28821cad7d93fa44c6cd19387f679c06a5b4d48595b64`.
 
-`stripcontrol-1.0.0.tar.gz` SHA-256:
-`45919bf97970e0c02ad28821cad7d93fa44c6cd19387f679c06a5b4d48595b64`.
+## QA round 1
+
+Reviewed base: `9c587d6425bd951a38d09cdcaee9b933dd7c3b61`. Date: 2026-11-01.
+Fix commit: `6ffedffaa794a55c8435c4911a383babc9b31dc9` (`fix the first certification findings`).
+All nine findings are addressed; independent lens re-verification remains pending.
+
+| Findings | Changes and verification |
+| --- | --- |
+| A-001, E-06 | Decode Brotli/gzip/deflate before manifest validation. Compressed-response contracts fail before the fix; live fetch now verifies all four unchanged pins. Brotli is development-only. |
+| C-01 | Base-type content operations bypass bytes/bytearray buffer hooks. Regressions first fail for substitution, exceptions and large messages in both codecs; stored data and memoryview contracts pass. |
+| C-02 | Consume both ST forms before cancellation/keep; hold ESC across chunks. Regressions first fail, then pass for every string family, both codecs, splits, pickle and close. GUIDE/CHANGELOG record the pending-ESC behavior. |
+| E-01 | Nondefault and combined options survive repeated close/reuse. M19, M51 and M52 now fail `test_close_preserves_every_option_across_reuse`. |
+| E-02 | Bare ESC final-byte boundary and every split are pinned. M26 fails `test_first_final_byte_directly_after_escape_at_every_split`. |
+| E-03 | GUIDE pins existing read-error policy: emitted output remains; pending decoder/joining tails are discarded; later files run. M34 fails `test_read_errors_discard_pending_utf8_tails_but_keep_emitted_output`. |
+| E-04 | Exact supported names and rejected aliases/case variants are pinned. M39 fails `test_encoding_aliases_are_rejected[utf8]`. |
+| E-05 | Raw UTF-8 reports are checked with Latin-1 and non-Latin-1 filenames in both modes and installed entry points. M50 fails `test_installed_wheel_end_to_end`. |
+
+The seven survivor patches were replayed separately in scratch copies: seven assertion failures,
+zero survivors or collection errors. All four gates exit 0; strict typing also covers tests.
+CPython 3.14.6: 413 passed, no skips, 300-second per-test timeout, both packaging flags enabled.
+Public names, signatures and defaults remain unchanged. No findings are disputed.
