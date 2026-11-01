@@ -298,3 +298,39 @@ All four release gates exit 0: `ruff format --check .` (39 files), `ruff check .
 passes for `src tests` (31 files). CPython 3.14.6, 300-second per-test timeout; both
 installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. A fresh fixture fetch
 verified all four unchanged manifest pins; Rich is installed for the oracle test.
+
+## QA round 5
+
+Reviewed base: `063539d5245952313c5f4def3ccad61e2e27381a`. Date: 2026-11-01.
+Fix commit: `b1e83eee837632ad1eb097ff826976dab9e0b3ae` (`pin byte-exact fixture decoding contracts`).
+All six lens e findings are addressed; independent lens re-verification remains pending.
+These findings identify missing contracts, not incorrect behavior in the reviewed decoder.
+The new contracts pass on the unchanged implementation and fail with the reported defects
+injected. The public API remains unchanged. CHANGELOG records the guarantees under
+Clarified. No findings are disputed.
+
+| Finding | Changes and verification |
+| --- | --- |
+| E-20 | Reject deflate streams truncated in the header, payload or any of the four trailer bytes, directly and through fetch, alone and under Brotli. Require `zlib.error` and no saved file, even when the decoded bytes match the manifest. S01 fails 28 cases of the truncated-deflate contracts. |
+| E-21 | Corrupt each Adler-32 checksum byte in an otherwise complete stream. Require `zlib.error` directly and through fetch without storage under a matching decoded-content manifest, alone and under Brotli. S02 fails 16 cases of the corrupt-deflate-checksum contracts. |
+| E-22 | Decode empty representations and create a zero-byte file under a matching manifest for absent encoding, identity, gzip, deflate, Brotli and a three-codec stack. S04 fails all 12 empty-content cases. |
+| E-23 | Preserve CRLF, blank lines and a final carriage return byte-for-byte during decoding and storage across the same six encoding cases. S05 fails all 12 CRLF cases. |
+| E-24 | Decode and store complete patterned bodies of 8191, 8192, 8193 and 16385 bytes across the same six encoding cases. S06 fails all 24 cases above the 8192-byte boundary. |
+| E-25 | Preserve every byte value and malformed UTF-8 sequences during decoding and storage across the same six encoding cases. S08 fails all 12 binary-content cases. |
+
+The 128 new cases are in `tests/test_fetch_upstream_deflate.py` and
+`tests/test_fetch_upstream_bytes.py`. Each representation is handwritten or compressed
+locally from handwritten bytes. Successful fetches require exit 0 and exact stored bytes;
+rejected streams require the decoder error and an empty destination.
+
+The ten exact S01 through S10 patches were replayed separately in scratch copies before
+and after adding the contracts. All six reported survivors originally passed all 137
+fetcher tests; S03, S07, S09 and S10 were already caught. With the added contracts, all
+ten patches exit 1 through test failures, with no collection errors, skips or timeouts.
+The unmodified and restored copies both pass all 265 fetcher tests.
+
+All four release gates exit 0: `ruff format --check .` (41 files), `ruff check .`,
+`mypy --strict src` (8 files), and `pytest` (666 passed, no skips). Strict typing also
+passes for `src tests` (33 files). CPython 3.14.6, 300-second per-test timeout; both
+installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. A fresh fixture fetch
+verified all four unchanged manifest pins; Rich is installed for the oracle test.
