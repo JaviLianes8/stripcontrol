@@ -58,6 +58,9 @@ All notable changes to this project are documented here. The format follows
 - Fixture-fetch contracts pin case-insensitive HTTP content encodings, including stacks.
   `identity` remains a no-op anywhere in a stack; unsupported encodings raise `ValueError`
   without saving a fixture, even when the decoded bytes would match the manifest.
+- Fixture-fetch contracts also pin spaces and horizontal tabs around encoding tokens,
+  including before commas, and repeated compression layers in their declared order.
+  Manifest validation and storage use the fully decoded content.
 
 ## [0.2.0]
 
