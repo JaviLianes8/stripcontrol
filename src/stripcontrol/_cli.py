@@ -11,7 +11,7 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import AbstractContextManager
 from typing import BinaryIO
 
-from ._bytes import ERRORS, STRAY_C1, Encoding, unjoin
+from ._bytes import ERRORS, STRAY_C1, Encoding, can_complete, unjoin
 from ._cli_errors import Parser
 from ._cli_errors import shown as _shown
 from ._control import STANDARD_WHITESPACE, escape_char, escape_control, find_control
@@ -93,7 +93,8 @@ def _run(name: str, args: argparse.Namespace) -> int:
     except OSError as error:
         raise _InputError(error) from error
     with opened as stream:
-        chunks = _decode(stream, codec)
+        decoded = _decode(stream, codec)
+        chunks = (text for text, _ in decoded)
         if args.check:
             label = "<stdin>" if name == "-" else _shown(name)
             return 1 if _check(label, chunks, keep, args.format_chars) else 0
@@ -101,7 +102,7 @@ def _run(name: str, args: argparse.Namespace) -> int:
         if args.escape:
             pieces = (_escape(chunk, keep, args.format_chars) for chunk in chunks)
         else:
-            pieces = _strip(chunks, keep, not args.chars_only, args.format_chars, codec)
+            pieces = _strip(decoded, keep, not args.chars_only, args.format_chars, codec)
         for piece in pieces:
             _write(piece.encode(codec, ERRORS))
     return 0
@@ -113,7 +114,8 @@ def _open(name: str) -> AbstractContextManager[BinaryIO]:
     return open(name, "rb")  # closed by the caller's with block
 
 
-def _decode(stream: BinaryIO, codec: Encoding) -> Iterator[str]:
+def _decode(stream: BinaryIO, codec: Encoding) -> Iterator[tuple[str, str]]:
+    """Yield each decoded chunk with the bytes the decoder keeps for the next one, escaped."""
     decoder = codecs.getincrementaldecoder(codec)(ERRORS)
     read: Callable[[int], bytes] = getattr(stream, "read1", stream.read)
     while True:
@@ -123,21 +125,33 @@ def _decode(stream: BinaryIO, codec: Encoding) -> Iterator[str]:
             raise _InputError(error) from error
         if not data:
             break
-        yield decoder.decode(data)
-    yield decoder.decode(b"", final=True)
+        text = decoder.decode(data)
+        pending = decoder.getstate()[0].decode(codec, ERRORS)
+        if pending and not can_complete(pending):
+            # The decoder also waits on ED A0..BF, a surrogate that never becomes a character.
+            text, pending = text + decoder.decode(b"", final=True), ""
+        yield text, pending
+    yield decoder.decode(b"", final=True), ""
 
 
 def _strip(
-    chunks: Iterator[str], keep: str, sequences: bool, format_chars: bool, codec: Encoding
+    chunks: Iterator[tuple[str, str]],
+    keep: str,
+    sequences: bool,
+    format_chars: bool,
+    codec: Encoding,
 ) -> Iterator[str]:
     stripper = ControlStripper(keep=keep, sequences=sequences, format_chars=format_chars)
     held = ""
-    for chunk in chunks:
+    for chunk, pending in chunks:
         if codec == "latin-1":
             yield stripper.feed(chunk)
             continue
         # Escaped bytes on both sides of a removed span must not join into a character.
-        safe, held = unjoin(held + stripper.feed(STRAY_C1.sub("", chunk)), final=False)
+        clean = stripper.feed(STRAY_C1.sub("", chunk))
+        # Pending bytes come right after the clean text unless an open sequence sits between.
+        after = "" if stripper.in_sequence else pending
+        safe, held = unjoin(held + clean, final=False, after=after)
         yield safe
     yield unjoin(held)[0]
 

@@ -52,6 +52,12 @@ All notable changes to this project are documented here. The format follows
   still complete a character. Previously a lead followed by a byte that cannot continue it
   (such as `E0 C0`, `F0 A0 C0` or `F4 FF`) was withheld until the next read and lost if that
   read failed; those bytes are now written at once. Normal EOF output is unchanged.
+- The same holds when the byte after the lead is one the incremental decoder keeps for the
+  next read: another lead (`C2 C2`, `E0 F0`, `F4 C2`) or, after `ED`, a byte `A0`..`BF`.
+  Previously the first lead (or the whole `ED A0`..`ED BF` pair) was withheld and lost on a
+  read failure; the decoder's pending bytes now serve as lookahead and `ED A0`..`ED BF`,
+  which never forms a character, is written at once. A lead followed by an unfinished escape
+  sequence is still held until the sequence ends.
 
 ### Clarified
 

@@ -132,7 +132,11 @@ at normal EOF. In strip mode a trailing undecodable UTF-8 lead (`C2`..`F4`) can 
 with fewer than its required continuation bytes, even after a removed control, but only
 while the bytes after it can still complete a character. Other bytes are never held:
 `C0`, `C1` and `F5`..`FF`, lone continuation bytes, and a lead followed by a byte that
-cannot continue it (such as `E0 C0` or `F4 A0`) are written before the next read. For example,
+cannot continue it (such as `E0 C0`, `F4 A0`, `ED A0`, or another lead as in `C2 C2`) are
+written before the next read. The decoder waits only on bytes that can still complete a
+character, so the second lead of `C2 C2` is held like any trailing lead. One exception: a
+lead followed by an unfinished escape sequence stays held until the sequence ends, because
+the bytes after the removed sequence decide whether it can join. For example,
 reading `b"prefix\xf4\x00"` then failing emits only `b"prefix"`; normal EOF emits
 `b"prefix\xf4"`. Partial output can depend on read boundaries and is not a complete
 sanitization of the bytes read. Each later file starts with fresh state.

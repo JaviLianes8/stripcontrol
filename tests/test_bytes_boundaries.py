@@ -161,5 +161,6 @@ def test_a_read_failure_keeps_bytes_that_can_never_complete(
 @pytest.mark.parametrize("byte", [0xC0, 0xC1, 0xC2, 0xE0, 0xF0, 0xF4, 0xF5, 0xFF])
 def test_a_live_stream_emits_a_byte_that_cannot_start_a_character(byte: int) -> None:
     data = b"a" + bytes([byte])
-    pieces = _cli._strip(iter([data.decode("utf-8", ERRORS)]), "\t\n\r", True, False, "utf-8")
+    chunks = iter([(data.decode("utf-8", ERRORS), "")])
+    pieces = _cli._strip(chunks, "\t\n\r", True, False, "utf-8")
     assert next(pieces).encode("utf-8", ERRORS) == (b"a" if byte in _RFC3629 else data)

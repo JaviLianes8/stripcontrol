@@ -51,6 +51,12 @@ def _can_continue(char: str, tail: str) -> bool:
     return True
 
 
+def can_complete(chars: str) -> bool:
+    """Whether escaped ``chars`` are a lead byte that continuation bytes could still complete."""
+    need = _continuations(chars[0]) if chars and _ESCAPED.match(chars[0]) else 0
+    return len(chars) <= need and _can_continue(chars[0], chars[1:])
+
+
 def _forms_a_character(chars: str) -> bool:
     try:
         bytes(ord(char) - 0xDC00 for char in chars).decode("utf-8")
@@ -59,14 +65,15 @@ def _forms_a_character(chars: str) -> bool:
     return True
 
 
-def unjoin(text: str, final: bool = True) -> tuple[str, str]:
+def unjoin(text: str, final: bool = True, after: str = "") -> tuple[str, str]:
     """Drop escaped bytes that removal has joined into a valid UTF-8 character.
 
     Removing ``00`` from ``EF BB 00 BF`` would leave ``EF BB BF``, a byte order mark. Such
     bytes were invalid where they stood, so the continuation bytes are dropped instead of
     letting them form a character nobody checked. Returns the safe text and, unless
     ``final``, a held-back tail (at most four characters) to prefix to the next chunk. Only
-    a lead byte followed by bytes that can still complete it is held back.
+    a lead byte followed by bytes that can still complete it is held back; ``after`` holds
+    escaped bytes known to come next (a decoder's pending bytes) and is only looked at.
     """
     if _ESCAPED.search(text) is None:
         return text, ""
@@ -80,7 +87,8 @@ def unjoin(text: str, final: bool = True) -> tuple[str, str]:
             tail = text[pos : pos + need]
             escaped = all(_ESCAPED.match(item) for item in tail)
             # Only bytes that can still become a character are worth holding back.
-            if escaped and len(tail) < need and not final and _can_continue(char, tail):
+            ahead = (tail + after)[:need]
+            if escaped and len(tail) < need and not final and _can_continue(char, ahead):
                 return "".join(out), char + text[pos:]
             if not (escaped and len(tail) == need and _forms_a_character(char + tail)):
                 break
