@@ -129,7 +129,10 @@ characters plus `...`; usage errors do not echo arguments and input errors repor
 After a read failure, output already emitted for that file remains. Pending decoder bytes,
 unfinished sequences and the UTF-8 joining-protection tail are discarded, not finalized as
 at normal EOF. In strip mode a trailing undecodable UTF-8 lead (`C2`..`F4`) can be held
-with fewer than its required continuation bytes, even after a removed control. For example,
+with fewer than its required continuation bytes, even after a removed control, but only
+while the bytes after it can still complete a character. Other bytes are never held:
+`C0`, `C1` and `F5`..`FF`, lone continuation bytes, and a lead followed by a byte that
+cannot continue it (such as `E0 C0` or `F4 A0`) are written before the next read. For example,
 reading `b"prefix\xf4\x00"` then failing emits only `b"prefix"`; normal EOF emits
 `b"prefix\xf4"`. Partial output can depend on read boundaries and is not a complete
 sanitization of the bytes read. Each later file starts with fresh state.

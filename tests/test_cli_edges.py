@@ -66,7 +66,7 @@ def test_a_read_error_in_check_mode_is_not_exit_1(monkeypatch: pytest.MonkeyPatc
     assert _run(monkeypatch, ["--check", "x"])[:2] == (2, b"")
 
 
-@pytest.mark.parametrize("tail", [b"\xc2", b"\xe0", b"\xef\xbb", b"\xf0", b"\xf4", b"\xf4\xa0"])
+@pytest.mark.parametrize("tail", [b"\xc2", b"\xe0", b"\xef\xbb", b"\xf0", b"\xf4", b"\xf0\xa0"])
 @pytest.mark.parametrize("separator", [b"", b"\x00"])
 def test_read_errors_discard_pending_utf8_tails_but_keep_emitted_output(
     monkeypatch: pytest.MonkeyPatch, tail: bytes, separator: bytes

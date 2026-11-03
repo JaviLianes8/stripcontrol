@@ -38,6 +38,19 @@ def _continuations(char: str) -> int:
     return 3 if 0xF0 <= byte <= 0xF4 else 0
 
 
+# Bytes allowed right after these leads (RFC 3629, section 4); otherwise 80..BF.
+_SECOND = {0xE0: (0xA0, 0xBF), 0xED: (0x80, 0x9F), 0xF0: (0x90, 0xBF), 0xF4: (0x80, 0x8F)}
+
+
+def _can_continue(char: str, tail: str) -> bool:
+    """Whether more continuation bytes could still turn ``char + tail`` into a character."""
+    for index, item in enumerate(tail):
+        low, high = _SECOND.get(ord(char) - 0xDC00, (0x80, 0xBF)) if index == 0 else (0x80, 0xBF)
+        if not low <= ord(item) - 0xDC00 <= high:
+            return False
+    return True
+
+
 def _forms_a_character(chars: str) -> bool:
     try:
         bytes(ord(char) - 0xDC00 for char in chars).decode("utf-8")
@@ -52,7 +65,8 @@ def unjoin(text: str, final: bool = True) -> tuple[str, str]:
     Removing ``00`` from ``EF BB 00 BF`` would leave ``EF BB BF``, a byte order mark. Such
     bytes were invalid where they stood, so the continuation bytes are dropped instead of
     letting them form a character nobody checked. Returns the safe text and, unless
-    ``final``, a held-back tail (at most four characters) to prefix to the next chunk.
+    ``final``, a held-back tail (at most four characters) to prefix to the next chunk. Only
+    a lead byte followed by bytes that can still complete it is held back.
     """
     if _ESCAPED.search(text) is None:
         return text, ""
@@ -65,7 +79,8 @@ def unjoin(text: str, final: bool = True) -> tuple[str, str]:
         while need:
             tail = text[pos : pos + need]
             escaped = all(_ESCAPED.match(item) for item in tail)
-            if escaped and len(tail) < need and not final:
+            # Only bytes that can still become a character are worth holding back.
+            if escaped and len(tail) < need and not final and _can_continue(char, tail):
                 return "".join(out), char + text[pos:]
             if not (escaped and len(tail) == need and _forms_a_character(char + tail)):
                 break

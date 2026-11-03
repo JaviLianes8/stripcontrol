@@ -48,11 +48,18 @@ All notable changes to this project are documented here. The format follows
   unchanged. This applies to text and both byte encodings.
 - The upstream fixture fetcher decodes Brotli, gzip and deflate HTTP content before checking
   manifest hashes and saving files. Brotli is a development dependency only.
+- The CLI's UTF-8 joining protection holds back only a lead byte whose following bytes can
+  still complete a character. Previously a lead followed by a byte that cannot continue it
+  (such as `E0 C0`, `F0 A0 C0` or `F4 FF`) was withheld until the next read and lost if that
+  read failed; those bytes are now written at once. Normal EOF output is unchanged.
 
 ### Clarified
 
 - Read failures preserve emitted CLI output and discard buffered decoder/joining tails and
   unfinished sequences. Normal EOF finalizes buffered bytes. Later files still run.
+- Contracts pin every UTF-8 lead and continuation byte boundary of the joining protection:
+  `C0`, `C1` and `F5`..`FF` are never held back, `C2`..`F4` are, and each lead's allowed
+  second-byte range is checked on both sides.
 - Contracts now pin every stream option across repeated close/reuse, the bare ESC final-byte
   boundary, exact encoding names, and UTF-8 check reports with non-ASCII filenames.
 - Fixture-fetch contracts pin case-insensitive HTTP content encodings, including stacks.
