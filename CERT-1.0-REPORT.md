@@ -15,7 +15,7 @@ Progress:
 - [x] README, GUIDE, dated CHANGELOG and release metadata (items 11 to 13)
 - [x] Built wheel, sdist inspection, upgrade, Python matrix (items 8, 10, 14)
 - [x] Final separate gates (item 15)
-- [x] Mutation round and table (item 18): 29 of 29 caught; review round 1 added 38 byte-boundary mutations; review round 2 added 5 lookahead mutations
+- [x] Mutation round and table (item 18): 29 of 29 caught; review round 1 added 38 byte-boundary mutations; review round 2 added 5 lookahead mutations; review rounds 3 and 4 added 6 more, all caught
 - [x] [PR #3](https://github.com/JaviLianes8/stripcontrol/pull/3), `release/1.0.0`; guard CLEAN
 - [ ] Independent reviewer (item 16, pending)
 - [ ] Merge and publication (item 17, pending)
@@ -42,7 +42,7 @@ Progress:
 | 15 | PASS: four gates exit 0 separately; 267 tests pass with packaging enabled |
 | 16 | Pending independent reviewer |
 | 17 | Merge and publication pending; PR and guard tracked above |
-| 18 | PASS: 29 deliberate mutations caught; 37 of 38 byte-boundary mutations caught, one proven equivalent; 5 of 5 lookahead mutations caught; tables below |
+| 18 | PASS: 29 deliberate mutations caught; 37 of 38 byte-boundary mutations caught, one proven equivalent; 5 of 5 lookahead mutations caught; 6 of 6 review round 3 and 4 mutations caught; tables below |
 | 19 | Round 1 lenses a, c, e and rounds 2 through 8 lens e findings fixed below; re-verification pending |
 
 ## API and behavior
@@ -565,3 +565,22 @@ Mutations under item 18 (round 3), against `tests/test_cli_lookahead_removal.py`
 | N4 | context dropped while the lead is still held | caught: c1-joins-c2-bf |
 | N5 | `may_be_removed` ignores format characters | caught: zwsp-tail |
 
+## Review round 4
+
+Reviewed base: `88e7b9142456a7164f1b5383c28683c4768834fb`. Date: 2026-11-03.
+Test commit: `26a5143be4e7b47e1fdc8faee862aeffe8d598c8`
+(`test that a written lead stays context across several later reads`). No source change.
+All four release gates exit 0 on the test commit: `ruff format --check .` (47 files),
+`ruff check .`, `mypy --strict src` (8 files) and `pytest`.
+The single reviewer finding is addressed; re-review remains pending. No findings are
+disputed.
+
+| Finding | Changes and verification |
+| --- | --- |
+| F-6c | Confirmed: mutation 12 (`written = lead if len(lead) == 1 else ""`, which drops a written lead after the first later read) survived the whole suite, because no test carried a written lead across more than one later read. The real code was already right. New `tests/test_cli_lookahead_chain.py`: the reviewer's two cases as CLI contracts (reads `F0 C2 \| 9B A0 BB \| A0` give `F0`; with `--format-chars --strip-whitespace`, reads `8B \| C2 C2 E2 \| 80 8B C2 85 \| BB 80 F4` give `C2 C2 F4`), each compared with `strip_control_bytes` of the whole input under the same options; and a seeded property (seed 20261103, 250 inputs of 1 to 12 pieces drawn from continuation and stray C1 bytes, UTF-8 leads, encoded C1 and format characters, ESC, BEL, NUL and whitespace, cut at 1 to 3 random points) run under all 16 option sets the CLI strips with (`--format-chars`, `--strip-whitespace`, `--chars-only`, `--latin-1`), where EOF output must equal `strip_control_bytes`. It runs in about one second. The real code passes all of them. |
+
+Mutation under item 18 (round 4), against the full suite:
+
+| Id | Change | Result |
+| --- | --- | --- |
+| 12 | `written = lead if len(lead) == 1 else ""` in `_cli._strip` (the lead is not kept as context past one read) | caught: c1-pending-then-two-reads, zwsp-pending-then-two-reads, and the seeded property on its own |
