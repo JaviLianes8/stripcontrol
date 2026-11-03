@@ -544,6 +544,10 @@ also passes for `src tests` (37 files). CPython 3.13.2, 300-second per-test time
 ## Review round 3
 
 Reviewed base: `ec29b688ff01f51d0a425a301663a170252f32df`. Date: 2026-11-03.
+Fix commit: `e4dd0ddfd7d9fa4d4edad91e73989732eca5d67a`
+(`keep a lead written through lookahead as context so a removed pending character cannot join it`).
+All four release gates exit 0 on the fix commit: `ruff format --check .` (46 files), `ruff check .`,
+`mypy --strict src` (8 files) and `pytest`.
 The single reviewer finding is addressed; re-review remains pending. No findings are
 disputed.
 
