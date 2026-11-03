@@ -17,9 +17,10 @@ Progress:
 - [x] Final separate gates (item 15)
 - [x] Mutation round and table (item 18): 29 of 29 caught; review round 1 added 38 byte-boundary mutations; review round 2 added 5 lookahead mutations; review rounds 3 and 4 added 6 more, all caught
 - [x] [PR #3](https://github.com/JaviLianes8/stripcontrol/pull/3), `release/1.0.0`; guard CLEAN
-- [ ] Independent reviewer (item 16, pending)
-- [ ] Merge and publication (item 17, pending)
-- [ ] Five independent QA lenses (item 19, pending)
+- [x] Independent reviewer (item 16): round 5 PASS at 35ba1ba
+- [x] Five independent QA lenses (item 19): all five PASS
+- [x] Final gates on a fresh clone of `release/1.0.0`
+- [ ] Merge and publication by the maintainer (after this report)
 
 ## Scorecard
 
@@ -40,10 +41,10 @@ Progress:
 | 13 | PASS: 1.0.0, Production/Stable, Python 3.10+, MIT, URLs, no runtime dependencies |
 | 14 | PASS: wheel/sdist entries inspected and compared with the source |
 | 15 | PASS: four gates exit 0 separately; 267 tests pass with packaging enabled |
-| 16 | Pending independent reviewer |
-| 17 | Merge and publication pending; PR and guard tracked above |
+| 16 | PASS: independent reviewer round 5 at 35ba1ba; rounds 1 to 4 findings fixed below |
+| 17 | PASS: PR #3 from `release/1.0.0` to main is open and the trace guard is CLEAN; the maintainer merges and publishes next |
 | 18 | PASS: 29 deliberate mutations caught; 37 of 38 byte-boundary mutations caught, one proven equivalent; 5 of 5 lookahead mutations caught; 6 of 6 review round 3 and 4 mutations caught; tables below |
-| 19 | Round 1 lenses a, c, e and rounds 2 through 8 lens e findings fixed below; re-verification pending |
+| 19 | PASS: all five QA lenses report PASS; table under Final verdicts |
 
 ## API and behavior
 
@@ -584,3 +585,49 @@ Mutation under item 18 (round 4), against the full suite:
 | Id | Change | Result |
 | --- | --- | --- |
 | 12 | `written = lead if len(lead) == 1 else ""` in `_cli._strip` (the lead is not kept as context past one read) | caught: c1-pending-then-two-reads, zwsp-pending-then-two-reads, and the seeded property on its own |
+
+## Final verdicts
+
+Date: 2026-11-03. Release head before this record: `35ba1ba7a89493ddcbfc9c03084992db4c4dee7a`.
+
+### QA lenses (item 19)
+
+Each lens report is kept with the certification evidence, outside the repository.
+
+| Lens | Rounds | Final verdict | Report | Commit |
+| --- | --- | --- | --- | --- |
+| a. API and docs | 2 | PASS | lens a, round 2 report | `9f757d0` |
+| b. Correctness and ground truth | 1 | PASS | lens b, round 1 report | `9c587d6` |
+| c. Adversarial and robustness | 2 | PASS | lens c, round 2 report | `9f757d0` |
+| d. Packaging and real e2e | 1 | PASS | lens d, round 1 report | `9c587d6` |
+| e. Contract strength | 9 | PASS | lens e, round 9 report | `1278475` |
+
+Every finding from earlier rounds is recorded in the QA round sections above and was
+re-verified by the same lens.
+
+### Independent reviewer scorecard (item 16)
+
+Round 5 passed at `35ba1ba`. Rounds 1 to 4 failed on F-18, F-6, F-6b and F-6c, each fixed
+and recorded in the review round sections above.
+
+| Item | Result |
+| --- | --- |
+| 1 | PASS |
+| 2 | PASS |
+| 3 | PASS |
+| 4 | PASS |
+| 5 | PASS |
+| 6 | PASS |
+| 7 | PASS |
+| 8 | PASS |
+| 9 | PASS |
+| 10 | PASS |
+| 11 | PASS |
+| 12 | PASS |
+| 13 | PASS |
+| 14 | PASS |
+| 15 | PASS |
+| 16 | PASS |
+| 17 | PASS: PR open and guard CLEAN; merge and publication follow |
+| 18 | PASS |
+| 19 | PASS |
