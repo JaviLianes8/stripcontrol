@@ -10,12 +10,17 @@ Only the code point ranges are written out; no text from the source file is copi
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "tests" / "upstream" / "unicode-18-DerivedGeneralCategory.txt"
+FOLDER = ROOT / "tests" / "upstream"
+SOURCE = (
+    Path(os.environ.get("STRIPCONTROL_UPSTREAM", str(FOLDER)))
+    / "unicode-18-DerivedGeneralCategory.txt"
+)
 TARGET = ROOT / "src" / "stripcontrol" / "_format_table.py"
 _LINE = re.compile(r"^([0-9A-F]{4,6})(?:\.\.([0-9A-F]{4,6}))?\s*;\s*(\w+)")
 
@@ -48,7 +53,7 @@ def render(ranges: list[tuple[int, int]], revision: str) -> str:
 
 
 def main() -> int:
-    manifest = json.loads((SOURCE.parent / "MANIFEST.json").read_text(encoding="utf-8"))
+    manifest = json.loads((FOLDER / "MANIFEST.json").read_text(encoding="utf-8"))
     revision = manifest[SOURCE.name]["revision"].removeprefix("Unicode ")
     ranges = category_ranges(SOURCE.read_text(encoding="utf-8"), "Cf")
     TARGET.write_text(render(ranges, revision), encoding="utf-8", newline="\n")

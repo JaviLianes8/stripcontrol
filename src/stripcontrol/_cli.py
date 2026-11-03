@@ -6,19 +6,18 @@ import argparse
 import codecs
 import contextlib
 import errno
-import os
-import re
 import sys
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import AbstractContextManager
 from typing import BinaryIO
 
-from ._bytes import ERRORS, STRAY_C1, Encoding, unjoin
+from ._bytes import ERRORS, STRAY_C1, Encoding, can_complete, may_be_removed, unjoin
+from ._cli_errors import Parser
+from ._cli_errors import shown as _shown
 from ._control import STANDARD_WHITESPACE, escape_char, escape_control, find_control
 from ._stripper import ControlStripper
 
 _CHUNK = 1 << 16
-_SURROGATE = re.compile("[\ud800-\udfff]")
 
 
 class _InputError(Exception):
@@ -30,7 +29,7 @@ class _InputError(Exception):
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = Parser(
         prog="stripcontrol",
         description="Copy FILEs (or stdin) to stdout without control characters and "
         "terminal escape sequences.",
@@ -73,7 +72,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             try:
                 status = max(status, _run(name, args))
             except _InputError as failure:
-                reason = failure.error.strerror or failure.error
+                reason = f"input could not be read (errno {failure.error.errno})"
                 print(f"stripcontrol: {_shown(name)}: {reason}", file=sys.stderr)
                 status = 2
     except OSError as error:
@@ -81,7 +80,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         # reports that as EINVAL.
         if not isinstance(error, BrokenPipeError) and error.errno != errno.EINVAL:
             raise
-        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        with contextlib.suppress(OSError):
+            sys.stdout.close()
     return status
 
 
@@ -93,7 +93,8 @@ def _run(name: str, args: argparse.Namespace) -> int:
     except OSError as error:
         raise _InputError(error) from error
     with opened as stream:
-        chunks = _decode(stream, codec)
+        decoded = _decode(stream, codec)
+        chunks = (text for text, _ in decoded)
         if args.check:
             label = "<stdin>" if name == "-" else _shown(name)
             return 1 if _check(label, chunks, keep, args.format_chars) else 0
@@ -101,7 +102,7 @@ def _run(name: str, args: argparse.Namespace) -> int:
         if args.escape:
             pieces = (_escape(chunk, keep, args.format_chars) for chunk in chunks)
         else:
-            pieces = _strip(chunks, keep, not args.chars_only, args.format_chars, codec)
+            pieces = _strip(decoded, keep, not args.chars_only, args.format_chars, codec)
         for piece in pieces:
             _write(piece.encode(codec, ERRORS))
     return 0
@@ -113,7 +114,8 @@ def _open(name: str) -> AbstractContextManager[BinaryIO]:
     return open(name, "rb")  # closed by the caller's with block
 
 
-def _decode(stream: BinaryIO, codec: Encoding) -> Iterator[str]:
+def _decode(stream: BinaryIO, codec: Encoding) -> Iterator[tuple[str, str]]:
+    """Yield each decoded chunk with the bytes the decoder keeps for the next one, escaped."""
     decoder = codecs.getincrementaldecoder(codec)(ERRORS)
     read: Callable[[int], bytes] = getattr(stream, "read1", stream.read)
     while True:
@@ -123,23 +125,45 @@ def _decode(stream: BinaryIO, codec: Encoding) -> Iterator[str]:
             raise _InputError(error) from error
         if not data:
             break
-        yield decoder.decode(data)
-    yield decoder.decode(b"", final=True)
+        text = decoder.decode(data)
+        pending = decoder.getstate()[0].decode(codec, ERRORS)
+        if pending and not can_complete(pending):
+            # The decoder also waits on ED A0..BF, a surrogate that never becomes a character.
+            text, pending = text + decoder.decode(b"", final=True), ""
+        yield text, pending
+    yield decoder.decode(b"", final=True), ""
 
 
 def _strip(
-    chunks: Iterator[str], keep: str, sequences: bool, format_chars: bool, codec: Encoding
+    chunks: Iterator[tuple[str, str]],
+    keep: str,
+    sequences: bool,
+    format_chars: bool,
+    codec: Encoding,
 ) -> Iterator[str]:
     stripper = ControlStripper(keep=keep, sequences=sequences, format_chars=format_chars)
-    held = ""
-    for chunk in chunks:
+    # ``written``: a lead written early, kept as context so later joins still drop bytes.
+    held = written = ""
+    for chunk, pending in chunks:
         if codec == "latin-1":
             yield stripper.feed(chunk)
             continue
         # Escaped bytes on both sides of a removed span must not join into a character.
-        safe, held = unjoin(held + stripper.feed(STRAY_C1.sub("", chunk)), final=False)
+        clean = stripper.feed(STRAY_C1.sub("", chunk))
+        text = written + held + clean
+        after = "" if stripper.in_sequence else pending  # an open sequence comes first
+        safe, held = unjoin(text, final=False)
+        lead = ""
+        if after and held:
+            ahead, rest = unjoin(text, final=False, after=after)
+            # Pending bytes may become a removed character: a lead with a tail waits then.
+            if not rest and (len(held) == 1 or not may_be_removed(after, format_chars)):
+                safe, held, lead = ahead, "", held
+        kept = written and not safe  # the lead is still held: keep it as context
+        safe, held = safe[len(written) :], held[len(written) :] if kept else held
+        written = written if kept else (lead if len(lead) == 1 else "")
         yield safe
-    yield unjoin(held)[0]
+    yield unjoin(written + held)[0][len(written) :]
 
 
 def _escape(chunk: str, keep: str, format_chars: bool) -> str:
@@ -169,18 +193,6 @@ def _advance(text: str, start: int, stop: int, line: int, column: int) -> tuple[
     if newlines:
         return line + newlines, stop - text.rindex("\n", start, stop)
     return line, column + stop - start
-
-
-def _shown(name: str) -> str:
-    # A file name is untrusted text too: its controls, format characters and undecodable
-    # bytes (lone surrogates) are written as escapes, never raw.
-    shown = escape_control(name, keep="", format_chars=True)
-
-    def surrogate(match: re.Match[str]) -> str:
-        code = ord(match.group())
-        return escape_char(code - 0xDC00 if code >= 0xDC80 else code)
-
-    return _SURROGATE.sub(surrogate, shown)
 
 
 def _write(data: bytes) -> None:

@@ -5,6 +5,7 @@ Slow and needs the build backend, so it runs only with STRIPCONTROL_E2E=1.
 
 from __future__ import annotations
 
+import email.parser
 import os
 import subprocess
 import sys
@@ -54,25 +55,56 @@ print("e2e ok")
 def _run(
     *cmd: str | Path, cwd: Path | None = None, stdin: bytes = b""
 ) -> subprocess.CompletedProcess[bytes]:
+    env = {
+        key: value for key, value in os.environ.items() if key not in {"PYTHONPATH", "PYTHONHOME"}
+    }
     return subprocess.run(
-        [str(c) for c in cmd], cwd=cwd, input=stdin, capture_output=True, check=False
+        [str(c) for c in cmd],
+        cwd=cwd,
+        input=stdin,
+        capture_output=True,
+        check=False,
+        timeout=180,
+        env=env,
     )
 
 
-def test_installed_wheel_end_to_end(tmp_path: Path) -> None:
+def _archives(tmp_path: Path) -> tuple[Path, Path]:
+    if os.environ.get("STRIPCONTROL_WHEEL"):
+        return Path(os.environ["STRIPCONTROL_WHEEL"]), Path(os.environ["STRIPCONTROL_SDIST"])
     dist = tmp_path / "dist"
     built = _run(sys.executable, "-m", "build", "--outdir", dist, ROOT)
     assert built.returncode == 0, built.stderr
     (wheel,) = dist.glob("stripcontrol-*.whl")
     (sdist,) = dist.glob("stripcontrol-*.tar.gz")
-    names = zipfile.ZipFile(wheel).namelist()
+    return wheel, sdist
+
+
+def test_installed_wheel_end_to_end(tmp_path: Path) -> None:
+    wheel, sdist = _archives(tmp_path)
+    with zipfile.ZipFile(wheel) as archive:
+        names = archive.namelist()
+        metadata = email.parser.BytesParser().parsebytes(
+            archive.read("stripcontrol-1.0.0.dist-info/METADATA")
+        )
+    assert metadata["Version"] == "1.0.0"
+    assert metadata["Requires-Python"] == ">=3.10"
+    assert metadata["License-Expression"] == "MIT"
+    assert "Development Status :: 5 - Production/Stable" in metadata.get_all("Classifier", [])
+    assert all("extra ==" in item for item in metadata.get_all("Requires-Dist", []))
+    assert "stripcontrol-1.0.0.dist-info/licenses/LICENSE" in names
     assert "stripcontrol/py.typed" in names
     assert "stripcontrol/_format_table.py" in names
     assert not any(name.startswith(("tests/", "scripts/")) for name in names)
     with tarfile.open(sdist) as archive:
         listing = archive.getnames()
     assert not any("IMPROVEMENTS-round" in name for name in listing)
+    assert not any(
+        "CERT-" in name or "__pycache__" in name or name.endswith(".pyc") for name in listing
+    )
     assert not any(name.endswith((".html", "DerivedGeneralCategory.txt")) for name in listing)
+    assert not any(name.endswith((".pdf", ".log")) for name in listing)
+    assert any(name.endswith("/LICENSE") for name in listing)
     assert any(name.endswith("tests/upstream/MANIFEST.json") for name in listing)
     assert any(name.endswith("tests/test_sequences.py") for name in listing)
 
@@ -102,6 +134,33 @@ def test_installed_wheel_end_to_end(tmp_path: Path) -> None:
         b"access.log:1:15: U+0007",
         b"access.log:2:2: byte 0x9b",
     ]
+    for name in ("\u00e9.log", "\u65e5.log"):
+        (work / name).write_bytes(b"x\x00")
+        for options in ([], ["--latin-1"]):
+            for command in ([script], [python, "-m", "stripcontrol"]):
+                report = _run(*command, "--check", *options, name, cwd=work)
+                assert report.returncode == 1, report.stderr
+                assert report.stdout == name.encode("utf-8") + b":1:2: U+0000\n"
+                assert report.stderr == b""
     escaped = _run(script, "--escape", cwd=work, stdin=log)
     assert escaped.stdout == b"GET /\\x1b]2;owned\\x07 ok\n\xce\x9b\\x9b\n"
+    assert escaped.returncode == 0
     assert _run(script, "--check", "--escape", cwd=work).returncode == 2
+    assert _run(script, "--latin-1", stdin=b"a\x9b31mb", cwd=work).stdout == b"ab"
+    assert _run(script, "--chars-only", stdin=b"a\x1b[31mb", cwd=work).stdout == b"a[31mb"
+    assert _run(script, "--strip-whitespace", stdin=b"a\t\r\nb", cwd=work).stdout == b"ab"
+    assert _run(script, "--format-chars", stdin="a\u202eb".encode(), cwd=work).stdout == b"ab"
+    assert _run(script, "--check", stdin=b"clean", cwd=work).returncode == 0
+    missing = _run(script, "missing.log", "access.log", cwd=work)
+    assert missing.returncode == 2 and missing.stdout == b"GET / ok\n\xce\x9b\n"
+    assert _run(script, "--help", cwd=work).returncode == 0
+
+    # A real reader closes its end; no device files or timing assumptions are needed.
+    (work / "large.log").write_bytes(b"a" * (1 << 20))
+    with subprocess.Popen(
+        [str(script), "large.log"], cwd=work, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    ) as process:
+        assert process.stdout is not None and process.stderr is not None
+        process.stdout.close()
+        assert process.wait(timeout=30) == 0
+        assert process.stderr.read() == b""

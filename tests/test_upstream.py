@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from stripcontrol import UNICODE_VERSION, find_control, strip_control
+from stripcontrol import UNICODE_VERSION, _format_table, find_control, strip_control
 from stripcontrol._format_table import FORMAT_RANGES
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -38,7 +38,7 @@ def test_the_format_table_is_the_ucd_cf_set(general_category: str) -> None:
 
 
 def test_the_generated_module_is_up_to_date(general_category: str) -> None:
-    module = Path(__file__).resolve().parents[1] / "src" / "stripcontrol" / "_format_table.py"
+    module = Path(_format_table.__file__)
     expected = render(category_ranges(general_category, "Cf"), UNICODE_VERSION)
     assert module.read_text(encoding="utf-8") == expected
     assert "18.0.0" in general_category.splitlines()[0]

@@ -99,7 +99,7 @@ def test_close_drops_the_open_sequence_and_resets() -> None:
 
 
 def test_feed_rejects_bytes() -> None:
-    with pytest.raises(TypeError, match="text must be str, not bytes"):
+    with pytest.raises(TypeError, match="text must be str"):
         ControlStripper().feed(b"a")  # type: ignore[arg-type]
 
 

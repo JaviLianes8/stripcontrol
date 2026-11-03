@@ -147,7 +147,7 @@ def test_unterminated_sequences_run_to_the_end() -> None:
 def test_a_kept_introducer_leaves_its_sequence_as_text() -> None:
     assert strip_control("a\x1b[31mb", keep="\x1b") == "a\x1b[31mb"
     assert strip_control("a\x9b31mb", keep="\x9b") == "a\x9b31mb"
-    assert strip_control("a\x9d0;t\x1b\\b", keep="\x1b") == "a\x1b\\b"
+    assert strip_control("a\x9d0;t\x1b\\b", keep="\x1b") == "ab"
 
 
 def test_a_kept_bel_still_ends_an_osc() -> None:

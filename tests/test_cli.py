@@ -88,7 +88,8 @@ def test_a_missing_file_is_reported_and_the_rest_still_run(
 ) -> None:
     good = tmp_path / "good.log"
     good.write_bytes(b"ok\x00\n")
-    code, out = _run(monkeypatch, [str(tmp_path / "missing.log"), str(good)])
+    monkeypatch.chdir(tmp_path)
+    code, out = _run(monkeypatch, ["missing.log", "good.log"])
     assert (code, out) == (2, b"ok\n")
     assert "missing.log" in capsys.readouterr().err
 
@@ -110,14 +111,14 @@ class _ClosedPipe(io.BytesIO):
 
 @pytest.mark.parametrize("error", [BrokenPipeError(), OSError(errno.EINVAL, "Invalid")])
 def test_a_closed_pipe_ends_quietly(monkeypatch: pytest.MonkeyPatch, error: OSError) -> None:
-    redirected: list[int] = []
+    closed: list[bool] = []
     monkeypatch.setattr("sys.stdin", types.SimpleNamespace(buffer=io.BytesIO(b"text\n")))
     monkeypatch.setattr(
-        "sys.stdout", types.SimpleNamespace(buffer=_ClosedPipe(error), fileno=lambda: 99)
+        "sys.stdout",
+        types.SimpleNamespace(buffer=_ClosedPipe(error), close=lambda: closed.append(True)),
     )
-    monkeypatch.setattr("os.dup2", lambda fd, target: redirected.append(target))
     assert main([]) == 0
-    assert redirected == [99]
+    assert closed == [True]
 
 
 def test_other_write_errors_still_raise(monkeypatch: pytest.MonkeyPatch) -> None:

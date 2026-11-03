@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
-from typing import Literal
+from typing import Literal, cast
 
 from ._control import STANDARD_WHITESPACE
+from ._format_table import FORMAT_RANGES
 from ._stripper import strip_control
 
 Encoding = Literal["utf-8", "latin-1"]
@@ -18,11 +19,14 @@ _ESCAPED = re.compile("[\udc80-\udcff]")
 
 
 def check_encoding(encoding: object) -> Encoding:
+    if not issubclass(type(encoding), str):
+        raise TypeError("encoding must be str")
+    encoding = str.__str__(encoding)
     if encoding == "utf-8":
         return "utf-8"
     if encoding == "latin-1":
         return "latin-1"
-    raise ValueError(f"encoding must be 'utf-8' or 'latin-1', not {encoding!r}")
+    raise ValueError("encoding must be 'utf-8' or 'latin-1'")
 
 
 def _continuations(char: str) -> int:
@@ -35,6 +39,38 @@ def _continuations(char: str) -> int:
     return 3 if 0xF0 <= byte <= 0xF4 else 0
 
 
+# Bytes allowed right after these leads (RFC 3629, section 4); otherwise 80..BF.
+_SECOND = {0xE0: (0xA0, 0xBF), 0xED: (0x80, 0x9F), 0xF0: (0x90, 0xBF), 0xF4: (0x80, 0x8F)}
+
+
+def _can_continue(char: str, tail: str) -> bool:
+    """Whether more continuation bytes could still turn ``char + tail`` into a character."""
+    for index, item in enumerate(tail):
+        low, high = _SECOND.get(ord(char) - 0xDC00, (0x80, 0xBF)) if index == 0 else (0x80, 0xBF)
+        if not low <= ord(item) - 0xDC00 <= high:
+            return False
+    return True
+
+
+def can_complete(chars: str) -> bool:
+    """Whether escaped ``chars`` are a lead byte that continuation bytes could still complete."""
+    need = _continuations(chars[0]) if chars and _ESCAPED.match(chars[0]) else 0
+    return len(chars) <= need and _can_continue(chars[0], chars[1:])
+
+
+_C1_BYTES = tuple(chr(code).encode("utf-8") for code in range(0x80, 0xA0))
+_FORMAT_BYTES = tuple(
+    chr(code).encode("utf-8") for start, end in FORMAT_RANGES for code in range(start, end + 1)
+)
+
+
+def may_be_removed(chars: str, format_chars: bool) -> bool:
+    """Whether escaped ``chars`` can start a character the stripper removes (C1, or Cf)."""
+    head = bytes(ord(char) - 0xDC00 for char in chars)
+    removable = _C1_BYTES + _FORMAT_BYTES if format_chars else _C1_BYTES
+    return any(item.startswith(head) for item in removable)
+
+
 def _forms_a_character(chars: str) -> bool:
     try:
         bytes(ord(char) - 0xDC00 for char in chars).decode("utf-8")
@@ -43,13 +79,15 @@ def _forms_a_character(chars: str) -> bool:
     return True
 
 
-def unjoin(text: str, final: bool = True) -> tuple[str, str]:
+def unjoin(text: str, final: bool = True, after: str = "") -> tuple[str, str]:
     """Drop escaped bytes that removal has joined into a valid UTF-8 character.
 
     Removing ``00`` from ``EF BB 00 BF`` would leave ``EF BB BF``, a byte order mark. Such
     bytes were invalid where they stood, so the continuation bytes are dropped instead of
     letting them form a character nobody checked. Returns the safe text and, unless
-    ``final``, a held-back tail (at most four characters) to prefix to the next chunk.
+    ``final``, a held-back tail (at most four characters) to prefix to the next chunk. Only
+    a lead byte followed by bytes that can still complete it is held back; ``after`` holds
+    escaped bytes known to come next (a decoder's pending bytes) and is only looked at.
     """
     if _ESCAPED.search(text) is None:
         return text, ""
@@ -62,7 +100,9 @@ def unjoin(text: str, final: bool = True) -> tuple[str, str]:
         while need:
             tail = text[pos : pos + need]
             escaped = all(_ESCAPED.match(item) for item in tail)
-            if escaped and len(tail) < need and not final:
+            # Only bytes that can still become a character are worth holding back.
+            ahead = (tail + after)[:need]
+            if escaped and len(tail) < need and not final and _can_continue(char, ahead):
                 return "".join(out), char + text[pos:]
             if not (escaped and len(tail) == need and _forms_a_character(char + tail)):
                 break
@@ -79,7 +119,7 @@ def strip_control_bytes(
     format_chars: bool = False,
     encoding: Encoding = "utf-8",
 ) -> bytes:
-    """Return ``data`` without control characters, as :func:`strip_control` does for text.
+    r"""Return ``data`` without control characters, as :func:`strip_control` does for text.
 
     With ``encoding="utf-8"`` a C1 control is the two-byte form ``C2 80`` to ``C2 9F``;
     bytes ``80`` to ``9F`` inside a valid character (``"Λ"`` is ``CE 9B``) are left
@@ -87,11 +127,21 @@ def strip_control_bytes(
     in 8-bit mode would act on it; other invalid bytes pass through unchanged unless a
     removal would join them into a character. With ``encoding="latin-1"`` every byte
     ``80`` to ``9F`` is a C1 control. ``keep`` is text, so it cannot keep a stray byte.
+    Invalid argument types raise TypeError; unsupported encodings and released
+    memoryviews raise ValueError. Memoryviews are read as raw bytes in logical order.
+
+    >>> from stripcontrol import strip_control_bytes
+    >>> strip_control_bytes(b"a\x1b[31mb\x00")
+    b'ab'
     """
-    if not isinstance(data, (bytes, bytearray, memoryview)):
-        raise TypeError(f"data must be bytes, not {type(data).__name__}")
+    if not issubclass(type(data), (bytes, bytearray, memoryview)):
+        raise TypeError("data must be bytes, bytearray or memoryview")
     codec = check_encoding(encoding)
-    text = bytes(data).decode(codec, ERRORS)
+    if issubclass(type(data), bytes):
+        data = bytes.__getitem__(cast(bytes, data), slice(None))
+    elif issubclass(type(data), bytearray):
+        data = bytearray.__getitem__(cast(bytearray, data), slice(None))
+    text = memoryview(data).tobytes().decode(codec, ERRORS)
     if codec == "utf-8":
         text = STRAY_C1.sub("", text)
     clean = strip_control(text, keep=keep, sequences=sequences, format_chars=format_chars)
