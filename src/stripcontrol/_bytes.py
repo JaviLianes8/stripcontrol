@@ -6,6 +6,7 @@ import re
 from typing import Literal, cast
 
 from ._control import STANDARD_WHITESPACE
+from ._format_table import FORMAT_RANGES
 from ._stripper import strip_control
 
 Encoding = Literal["utf-8", "latin-1"]
@@ -55,6 +56,19 @@ def can_complete(chars: str) -> bool:
     """Whether escaped ``chars`` are a lead byte that continuation bytes could still complete."""
     need = _continuations(chars[0]) if chars and _ESCAPED.match(chars[0]) else 0
     return len(chars) <= need and _can_continue(chars[0], chars[1:])
+
+
+_C1_BYTES = tuple(chr(code).encode("utf-8") for code in range(0x80, 0xA0))
+_FORMAT_BYTES = tuple(
+    chr(code).encode("utf-8") for start, end in FORMAT_RANGES for code in range(start, end + 1)
+)
+
+
+def may_be_removed(chars: str, format_chars: bool) -> bool:
+    """Whether escaped ``chars`` can start a character the stripper removes (C1, or Cf)."""
+    head = bytes(ord(char) - 0xDC00 for char in chars)
+    removable = _C1_BYTES + _FORMAT_BYTES if format_chars else _C1_BYTES
+    return any(item.startswith(head) for item in removable)
 
 
 def _forms_a_character(chars: str) -> bool:

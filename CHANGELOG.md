@@ -58,6 +58,12 @@ All notable changes to this project are documented here. The format follows
   read failure; the decoder's pending bytes now serve as lookahead and `ED A0`..`ED BF`,
   which never forms a character, is written at once. A lead followed by an unfinished escape
   sequence is still held until the sequence ends.
+  Pending bytes can still complete into a removed character (a C1 control `C2 80`..`C2 9F`
+  always, a format character with `--format-chars`), so a lead written this way stays as
+  context for the next read and continuation bytes that removal brings next to it are still
+  dropped; a lead with continuation bytes after it is written early only when no completion
+  of the pending bytes is removed. EOF output across reads equals one `strip_control_bytes`
+  of the whole input.
 
 ### Clarified
 

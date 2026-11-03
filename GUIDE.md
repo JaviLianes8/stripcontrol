@@ -96,7 +96,11 @@ sequence, even if `keep` contains the corresponding Unicode character.
 
 Other invalid bytes are preserved except when removal joins them into a valid UTF-8
 character. Then the joining continuation bytes are dropped, retaining the lead byte.
-This prevents removal from synthesizing previously unchecked characters. `latin-1`
+This prevents removal from synthesizing previously unchecked characters. The CLI applies the same
+rule across reads: its EOF output equals `strip_control_bytes` of the whole input. A lead
+whose next bytes the decoder still holds is written early only if those bytes cannot
+continue it, and it stays as context, so bytes that follow a removed character after it
+are dropped as well. `latin-1`
 maps each byte directly to a character, so every byte `80`..`9F` is a C1 control.
 
 ```python

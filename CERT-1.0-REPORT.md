@@ -540,3 +540,24 @@ All four release gates exit 0 on the fix commit: `ruff format --check .` (45 fil
 `ruff check .`, `mypy --strict src` (8 files), and `pytest` (1359 passed, 2 skipped: the
 installed-wheel and PyPI upgrade checks, which need their opt-in switches). Strict typing
 also passes for `src tests` (37 files). CPython 3.13.2, 300-second per-test timeout.
+
+## Review round 3
+
+Reviewed base: `ec29b688ff01f51d0a425a301663a170252f32df`. Date: 2026-11-03.
+The single reviewer finding is addressed; re-review remains pending. No findings are
+disputed.
+
+| Finding | Changes and verification |
+| --- | --- |
+| F-6b | Confirmed on the reviewed base: the pending bytes used as lookahead can complete into a removed character (C1 `C2 80`..`C2 9F`, or a format character with `--format-chars`), so the lead was written with no protection and later continuation bytes joined it (`61 C2 C2 \| 80 BF` gave `61 C2 BF`). New `tests/test_cli_lookahead_removal.py`: five two-read contracts (the reviewer's three cases plus a lead with a continuation byte, `61 E0 A0 C2 \| 80 A0` and its ZWSP variant) and a sweep over every lead `C2`..`F4`, every pending lead `C2`..`F4`, removable completions and four fills, under five option sets, comparing EOF output with `strip_control_bytes` of the whole input; all failed on the base. `_strip` now keeps a lead written through lookahead as context in front of the next text and strips it from the output, so continuation bytes after a removal are still dropped; a lead with continuation bytes after it is written early only when `_bytes.may_be_removed` says no completion of the pending bytes is removed. `tests/test_cli_lookahead.py` and the reviewer's round-2 and round-3 scripts (`join.py`) agree with one read and `strip_control_bytes`. GUIDE and CHANGELOG 1.0.0 state the rule. |
+
+Mutations under item 18 (round 3), against `tests/test_cli_lookahead_removal.py` and `tests/test_cli_lookahead.py`:
+
+| Id | Change | Result |
+| --- | --- | --- |
+| N1 | written lead never kept as context | caught: c1-joins-c2-bf |
+| N2 | lead with tail written regardless of removable pending | caught: c1-tail, zwsp-tail |
+| N3 | context left inside the held tail (duplicated) | caught: c1-joins-c2-bf |
+| N4 | context dropped while the lead is still held | caught: c1-joins-c2-bf |
+| N5 | `may_be_removed` ignores format characters | caught: zwsp-tail |
+

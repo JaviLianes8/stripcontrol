@@ -11,7 +11,7 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import AbstractContextManager
 from typing import BinaryIO
 
-from ._bytes import ERRORS, STRAY_C1, Encoding, can_complete, unjoin
+from ._bytes import ERRORS, STRAY_C1, Encoding, can_complete, may_be_removed, unjoin
 from ._cli_errors import Parser
 from ._cli_errors import shown as _shown
 from ._control import STANDARD_WHITESPACE, escape_char, escape_control, find_control
@@ -142,18 +142,28 @@ def _strip(
     codec: Encoding,
 ) -> Iterator[str]:
     stripper = ControlStripper(keep=keep, sequences=sequences, format_chars=format_chars)
-    held = ""
+    # ``written``: a lead written early, kept as context so later joins still drop bytes.
+    held = written = ""
     for chunk, pending in chunks:
         if codec == "latin-1":
             yield stripper.feed(chunk)
             continue
         # Escaped bytes on both sides of a removed span must not join into a character.
         clean = stripper.feed(STRAY_C1.sub("", chunk))
-        # Pending bytes come right after the clean text unless an open sequence sits between.
-        after = "" if stripper.in_sequence else pending
-        safe, held = unjoin(held + clean, final=False, after=after)
+        text = written + held + clean
+        after = "" if stripper.in_sequence else pending  # an open sequence comes first
+        safe, held = unjoin(text, final=False)
+        lead = ""
+        if after and held:
+            ahead, rest = unjoin(text, final=False, after=after)
+            # Pending bytes may become a removed character: a lead with a tail waits then.
+            if not rest and (len(held) == 1 or not may_be_removed(after, format_chars)):
+                safe, held, lead = ahead, "", held
+        kept = written and not safe  # the lead is still held: keep it as context
+        safe, held = safe[len(written) :], held[len(written) :] if kept else held
+        written = written if kept else (lead if len(lead) == 1 else "")
         yield safe
-    yield unjoin(held)[0]
+    yield unjoin(written + held)[0][len(written) :]
 
 
 def _escape(chunk: str, keep: str, format_chars: bool) -> str:
