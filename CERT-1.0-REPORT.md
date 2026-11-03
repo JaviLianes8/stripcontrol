@@ -15,7 +15,7 @@ Progress:
 - [x] README, GUIDE, dated CHANGELOG and release metadata (items 11 to 13)
 - [x] Built wheel, sdist inspection, upgrade, Python matrix (items 8, 10, 14)
 - [x] Final separate gates (item 15)
-- [x] Mutation round and table (item 18): 29 of 29 caught; review round 1 added 38 byte-boundary mutations
+- [x] Mutation round and table (item 18): 29 of 29 caught; review round 1 added 38 byte-boundary mutations; review round 2 added 5 lookahead mutations
 - [x] [PR #3](https://github.com/JaviLianes8/stripcontrol/pull/3), `release/1.0.0`; guard CLEAN
 - [ ] Independent reviewer (item 16, pending)
 - [ ] Merge and publication (item 17, pending)
@@ -42,7 +42,7 @@ Progress:
 | 15 | PASS: four gates exit 0 separately; 267 tests pass with packaging enabled |
 | 16 | Pending independent reviewer |
 | 17 | Merge and publication pending; PR and guard tracked above |
-| 18 | PASS: 29 deliberate mutations caught; 37 of 38 byte-boundary mutations caught, one proven equivalent; tables below |
+| 18 | PASS: 29 deliberate mutations caught; 37 of 38 byte-boundary mutations caught, one proven equivalent; 5 of 5 lookahead mutations caught; tables below |
 | 19 | Round 1 lenses a, c, e and rounds 2 through 8 lens e findings fixed below; re-verification pending |
 
 ## API and behavior
@@ -218,6 +218,21 @@ timeout. Caught means exit 1 through a test failure. The restored clone passes a
 | B36 | stray C1 range ends at A0 | caught | `tests/test_bytes.py::test_invalid_bytes_that_were_already_together_stay` |
 | B37 | escaped-byte range starts at 81 | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[c2]` |
 | B38 | escaped-byte range ends at FE | equivalent | none: byte FF is neither a lead nor a continuation, so the lead table and every continuation range reject it whether or not it counts as escaped. `unjoin` with and without the change gave identical results, final and not final, for all 2,463,459 inputs tried (every string of one to three characters over `a` and the 128 escaped bytes, plus 300,000 seeded strings of four to eight). |
+
+### Decoder lookahead mutations (review round 2)
+
+Each change was applied alone to a scratch copy of the fix commit `b966009`, then the full
+suite ran with `-x`, bytecode disabled and a 300-second per-test timeout. Caught means
+exit 1 through a test failure. The restored copy passes again (exit 0). L1 and L2 put back
+the reported defect.
+
+| Id | Deliberate change | Module | Result | First failing contract |
+| --- | --- | --- | --- | --- |
+| L1 | `_strip` ignores the decoder's pending bytes (the reviewed behaviour) | `_cli.py` | caught | `tests/test_cli_lookahead.py::test_a_live_stream_writes_a_lead_its_pending_byte_cannot_continue[c2c2]` |
+| L2 | `unjoin` ignores its lookahead | `_bytes.py` | caught | `tests/test_cli_lookahead.py::test_a_live_stream_writes_a_lead_its_pending_byte_cannot_continue[c2c2]` |
+| L3 | the decoder keeps `ED A0`..`ED BF` pending | `_cli.py` | caught | `tests/test_cli_lookahead.py::test_a_live_stream_writes_a_lead_its_pending_byte_cannot_continue[eda0]` |
+| L4 | pending bytes used as lookahead past an open sequence | `_cli.py` | caught | `tests/test_cli_lookahead.py::test_pending_bytes_after_an_open_sequence_are_not_lookahead` |
+| L5 | a full-length pending prefix counts as unable to complete | `_bytes.py` | caught | `tests/test_cli.py::test_a_sequence_split_across_reads_is_removed` |
 
 ## Tested archive hashes
 
@@ -506,3 +521,22 @@ All four release gates exit 0 on this commit: `ruff format --check .` (44 files)
 `ruff check .`, `mypy --strict src` (8 files), and `pytest` (1347 passed, 2 skipped: the
 installed-wheel and PyPI upgrade checks, which need their opt-in switches). Strict typing
 also passes for `src tests` (36 files). CPython 3.13.2, 300-second per-test timeout.
+
+## Review round 2
+
+Reviewed base: `723cf72bf8811c8e27930dcf575881217a983ef5`. Date: 2026-11-03.
+Fix commit: `b9660094a30c9b812c52a046f62fe6aef5628a95`
+(`write a utf-8 lead at once when the decoder's pending bytes cannot continue it`).
+The single reviewer finding is addressed; re-review remains pending. No findings are
+disputed.
+
+| Finding | Changes and verification |
+| --- | --- |
+| F-6 | Confirmed on the reviewed base: the incremental decoder keeps a trailing lead, and the pairs `ED A0`..`ED BF`, in its own buffer, so `unjoin` saw the lead before it with nothing after it and held it back; a read failure lost it. Round 1 above claimed `ED A0` was written; that held for `unjoin` alone but not through the CLI decoder. New `tests/test_cli_lookahead.py` drives `main` through the real decoder: the output seen when the next read starts (stdin kept open) and after that read fails, for `C2 C2`, `E0 F0`, `F4 C2`, `ED A0` and `ED BF`, plus every lead `C2`..`F4` followed by every byte `A0`..`FF` (all 4,896 pairs) against the strict decoder. 11 cases failed on the base. `_decode` now yields the decoder's pending bytes with each chunk and `unjoin` uses them as lookahead, so a lead followed by a pending byte that cannot continue it is written at once. Pending bytes that can never complete (`ED A0`..`ED BF`) are flushed from the decoder and written at once; this is exact because every later byte decodes the same either way. Pending bytes are not used as lookahead while an escape sequence is open, since the bytes after the removed sequence decide whether the lead joins; a new contract pins that (`C2 ESC` then pending `C2 80 BF` must not join into `C2 BF`). The reviewer's scripts now report 0 over-held pairs and, by subprocess with stdin open, `61 C2 C2` emits `61 C2`, `61 F4 C2` emits `61 F4`, `61 ED A0` emits `61 ED A0`. GUIDE and CHANGELOG 1.0.0 Fixed record the change and the open-sequence exception; normal EOF output is unchanged. Five lookahead mutations (table under item 18) are all caught. |
+
+`_strip` and `_decode` are private; public names, signatures and defaults are unchanged.
+
+All four release gates exit 0 on the fix commit: `ruff format --check .` (45 files),
+`ruff check .`, `mypy --strict src` (8 files), and `pytest` (1359 passed, 2 skipped: the
+installed-wheel and PyPI upgrade checks, which need their opt-in switches). Strict typing
+also passes for `src tests` (37 files). CPython 3.13.2, 300-second per-test timeout.
