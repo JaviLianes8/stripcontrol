@@ -15,7 +15,7 @@ Progress:
 - [x] README, GUIDE, dated CHANGELOG and release metadata (items 11 to 13)
 - [x] Built wheel, sdist inspection, upgrade, Python matrix (items 8, 10, 14)
 - [x] Final separate gates (item 15)
-- [x] Mutation round and table (item 18): 29 of 29 caught
+- [x] Mutation round and table (item 18): 29 of 29 caught; review round 1 added 38 byte-boundary mutations
 - [x] [PR #3](https://github.com/JaviLianes8/stripcontrol/pull/3), `release/1.0.0`; guard CLEAN
 - [ ] Independent reviewer (item 16, pending)
 - [ ] Merge and publication (item 17, pending)
@@ -42,7 +42,7 @@ Progress:
 | 15 | PASS: four gates exit 0 separately; 267 tests pass with packaging enabled |
 | 16 | Pending independent reviewer |
 | 17 | Merge and publication pending; PR and guard tracked above |
-| 18 | PASS: 29 deliberate mutations caught; table below |
+| 18 | PASS: 29 deliberate mutations caught; 37 of 38 byte-boundary mutations caught, one proven equivalent; tables below |
 | 19 | Round 1 lenses a, c, e and rounds 2 through 8 lens e findings fixed below; re-verification pending |
 
 ## API and behavior
@@ -171,6 +171,53 @@ The complete wheel/upgrade suite on the unmodified tree passed 267 tests.
 | M27 | invoke buffer inspection hook | `_bytes.py` | caught | `tests/test_type_hooks.py::test_bytes_reject_type_hooks` |
 | M28 | invoke encoding inspection hook | `_bytes.py` | caught | `tests/test_type_hooks.py::test_bytes_reject_type_hooks` |
 | M29 | expose the future import marker | `__init__.py` | caught | `tests/test_contract.py::test_public_namespace_contains_only_documented_exports` |
+
+### Byte-boundary mutations (review round 1)
+
+Each change was applied alone to `src/stripcontrol/_bytes.py` in a scratch clone of
+`9d14bd8`, then the full suite ran with `-x`, bytecode disabled and a 300-second per-test
+timeout. Caught means exit 1 through a test failure. The restored clone passes again.
+
+| Id | Deliberate change | Result | First failing contract |
+| --- | --- | --- | --- |
+| B01 | two-byte leads start at C0 (reviewer R7) | caught | `tests/test_bytes_boundaries.py::test_only_a_lead_byte_is_held_back_at_the_end[c0]` |
+| B02 | two-byte leads start at C1 | caught | `tests/test_bytes_boundaries.py::test_only_a_lead_byte_is_held_back_at_the_end[c1]` |
+| B03 | two-byte leads start at C3 | caught | `tests/test_bytes.py::test_removal_never_joins_invalid_bytes_into_a_character[\xc2\x1b[31m\xad-\xc2]` |
+| B04 | two-byte leads end at DE | caught | `tests/test_bytes_boundaries.py::test_only_a_lead_byte_is_held_back_at_the_end[df]` |
+| B05 | two-byte leads end at E0 | caught | `tests/test_bytes.py::test_removal_never_joins_invalid_bytes_into_a_character[\xe0\xa3\x01\xa2-\xe0]` |
+| B06 | three-byte leads start at E1 | caught | `tests/test_bytes.py::test_removal_never_joins_invalid_bytes_into_a_character[\xe0\xa3\x01\xa2-\xe0]` |
+| B07 | three-byte leads end at EE | caught | `tests/test_bytes.py::test_removal_never_joins_invalid_bytes_into_a_character[\xef\xbb\x00\xbf-\xef]` |
+| B08 | three-byte leads end at F0 | caught | `tests/test_bytes.py::test_removal_never_joins_invalid_bytes_into_a_character[\xf0\xa0\x00\xa0\xa0-\xf0]` |
+| B09 | four-byte leads start at F1 | caught | `tests/test_bytes.py::test_removal_never_joins_invalid_bytes_into_a_character[\xf0\xa0\x00\xa0\xa0-\xf0]` |
+| B10 | four-byte leads end at F3 | caught | `tests/test_bytes_boundaries.py::test_only_a_lead_byte_is_held_back_at_the_end[f4]` |
+| B11 | four-byte leads end at F5 | caught | `tests/test_bytes_boundaries.py::test_only_a_lead_byte_is_held_back_at_the_end[f5]` |
+| B12 | four-byte leads end at F7 (reviewer variant) | caught | `tests/test_bytes_boundaries.py::test_only_a_lead_byte_is_held_back_at_the_end[f5]` |
+| B13 | E0 second byte starts at 9F | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[e0]` |
+| B14 | E0 second byte starts at A1 | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[e0]` |
+| B15 | E0 second byte ends at BE | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[e0]` |
+| B16 | E0 second byte ends at C0 | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[e0]` |
+| B17 | ED second byte starts at 81 | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[ed]` |
+| B18 | ED second byte ends at 9E | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[ed]` |
+| B19 | ED second byte ends at A0 | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[ed]` |
+| B20 | F0 second byte starts at 8F | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[f0]` |
+| B21 | F0 second byte starts at 91 | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[f0]` |
+| B22 | F0 second byte ends at BE | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[f0]` |
+| B23 | F0 second byte ends at C0 | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[f0]` |
+| B24 | F4 second byte starts at 81 | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[f4]` |
+| B25 | F4 second byte ends at 8E | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[f4]` |
+| B26 | F4 second byte ends at 90 | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[f4]` |
+| B27 | other second bytes starts at 81 | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[e1]` |
+| B28 | other second bytes ends at BE | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[e1]` |
+| B29 | other second bytes ends at C0 | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[e1]` |
+| B30 | third and fourth bytes starts at 81 | caught | `tests/test_bytes_boundaries.py::test_later_bytes_must_be_continuations_to_be_held[240]` |
+| B31 | third and fourth bytes ends at BE | caught | `tests/test_bytes_boundaries.py::test_later_bytes_must_be_continuations_to_be_held[240]` |
+| B32 | third and fourth bytes ends at C0 | caught | `tests/test_bytes_boundaries.py::test_later_bytes_must_be_continuations_to_be_held[240]` |
+| B33 | hold any short escaped tail (the rule before this fix) | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[e0]` |
+| B34 | stray C1 range starts at 81 | caught | `tests/test_bytes_boundaries.py::test_one_stray_byte_is_removed_only_in_the_c1_range[80]` |
+| B35 | stray C1 range ends at 9E | caught | `tests/test_bytes_boundaries.py::test_one_stray_byte_is_removed_only_in_the_c1_range[9f]` |
+| B36 | stray C1 range ends at A0 | caught | `tests/test_bytes.py::test_invalid_bytes_that_were_already_together_stay` |
+| B37 | escaped-byte range starts at 81 | caught | `tests/test_bytes_boundaries.py::test_a_lead_is_held_only_while_its_next_byte_can_continue_it[c2]` |
+| B38 | escaped-byte range ends at FE | equivalent | none: byte FF is neither a lead nor a continuation, so the lead table and every continuation range reject it whether or not it counts as escaped. `unjoin` with and without the change gave identical results, final and not final, for all 2,463,459 inputs tried (every string of one to three characters over `a` and the 128 escaped bytes, plus 300,000 seeded strings of four to eight). |
 
 ## Tested archive hashes
 
@@ -437,3 +484,25 @@ All four release gates exit 0: `ruff format --check .` (43 files), `ruff check .
 passes for `src tests` (35 files). CPython 3.14.6, 300-second per-test timeout; both
 installed-wheel and live PyPI 0.2.0 upgrade checks are enabled. All four pinned upstream
 fixtures and Rich are present for the ground-truth and oracle tests.
+
+## Review round 1
+
+Reviewed base: `12784750127b9dba3fe4ef04ebc492e5914c7acf`. Date: 2026-11-03.
+Fix commit: `9d14bd80545bef75af38396906c0adc70b48467d`
+(`hold back only utf-8 leads that can still complete and pin every byte boundary`).
+The single reviewer finding is addressed; re-review by the same reviewer remains pending.
+No findings are disputed.
+
+| Finding | Changes and verification |
+| --- | --- |
+| F-18 | The two reported mutations (two-byte leads from C0, four-byte leads up to F7) were replayed on the reviewed base: both survive the full suite (exit 0). New `tests/test_bytes_boundaries.py` checks every byte 80..FF: only C2..F4 are held back at the end of a read, while C0, C1 and F5..FF never are; the CLI keeps C0, F5 and every other non-lead A0..FF when the next read fails; a live stream emits them at once. The lead table is handwritten from RFC 3629 and checked against the strict decoder. Closing the class found a related defect: a lead followed by a byte that cannot continue it (`E0 C0`, `ED A0`, `F4 A0`, `F0 A0 C0`, `F4 FF`) was also withheld and lost on a read failure. Contracts for every lead's second-byte range and for later continuation bytes failed on the base (32 cases); `unjoin` now holds back only bytes that can still complete a character. One existing case that pinned the old rule (`F4 A0` withheld) became `F0 A0`, a tail that can still complete. GUIDE and CHANGELOG (Fixed, Clarified) record the change; normal EOF output is unchanged. |
+
+38 byte-boundary mutations, covering both sides of every lead, second-byte, continuation,
+stray C1 and escaped-byte range in `_bytes.py`, were replayed one at a time (table under
+item 18): 37 caught, one proven equivalent. Public names, signatures and defaults remain
+unchanged.
+
+All four release gates exit 0 on this commit: `ruff format --check .` (44 files),
+`ruff check .`, `mypy --strict src` (8 files), and `pytest` (1347 passed, 2 skipped: the
+installed-wheel and PyPI upgrade checks, which need their opt-in switches). Strict typing
+also passes for `src tests` (36 files). CPython 3.13.2, 300-second per-test timeout.
